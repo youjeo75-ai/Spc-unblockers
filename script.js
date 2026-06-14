@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Login button - show info toast
+    initCommunityAuth();
 
     // Breadcrumb update on game page
     const breadcrumbGame = document.getElementById('breadcrumbGame');
@@ -275,6 +275,20 @@ function initCategoryFiltering() {
 
             // Get category from text content or data attribute
             const categoryText = navItem.textContent.trim();
+            
+            // Check if Community is clicked
+            if (categoryText === 'Community') {
+                showCommunityTab();
+                // Close mobile sidebar
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar && window.innerWidth <= 768) {
+                    sidebar.classList.remove('mobile-open');
+                }
+                return;
+            } else {
+                showGamesTab();
+            }
+
             const category = categoryText === 'Action' ? 'Action' :
                             categoryText === 'Driving' ? 'Driving' :
                             categoryText === 'Popular' ? 'Action' :
@@ -294,7 +308,7 @@ function initCategoryFiltering() {
 
             // Close mobile sidebar
             const sidebar = document.getElementById('sidebar');
-            if (window.innerWidth <= 768) {
+            if (sidebar && window.innerWidth <= 768) {
                 sidebar.classList.remove('mobile-open');
             }
         });
@@ -729,6 +743,825 @@ function updateGameDescription(game) {
     if (descContainer && game?.description) {
         descContainer.textContent = game.description;
     }
+}
+
+/* ═══════════════════════════════════════════
+   COMMUNITY MODE - REAL P2P CHAT & VOICE CALLS (PeerJS)
+═══════════════════════════════════════════ */
+
+let currentUser = JSON.parse(localStorage.getItem('spc_current_user') || 'null');
+let selectedUser = null; // { username, peerId, conn }
+
+// PeerJS state
+let peer = null;          // Our Peer instance
+let activeConns = {};     // { peerId: DataConnection }
+let activeCall = null;    // MediaConnection for voice
+let localStream = null;   // Our mic stream
+let activeChats = {};     // { username: [{ sender, text, time }] }
+
+// ─── PEER ID HELPERS ─────────────────────────────────────────────────────────
+// Map username → stable PeerJS ID (prefix to avoid collisions with random peers)
+function usernameToPeerId(username) {
+    return 'spc-' + username.toLowerCase().replace(/[^a-z0-9]/g, '-');
+}
+
+// Helper to switch view states
+function showCommunityTab() {
+    const gamesView = document.getElementById('gamesView');
+    const communityView = document.getElementById('communityView');
+    if (gamesView && communityView) {
+        gamesView.style.display = 'none';
+        communityView.style.display = 'flex';
+        window.location.hash = 'community';
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.textContent.trim() === 'Community') item.classList.add('active');
+            else item.classList.remove('active');
+        });
+        renderCommunityPanel();
+    }
+}
+
+function showGamesTab() {
+    const gamesView = document.getElementById('gamesView');
+    const communityView = document.getElementById('communityView');
+    if (gamesView && communityView) {
+        gamesView.style.display = 'block';
+        communityView.style.display = 'none';
+        if (window.location.hash === '#community') window.location.hash = '';
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.textContent.trim() === 'Home') item.classList.add('active');
+            else item.classList.remove('active');
+        });
+    }
+}
+
+function initCommunityAuth() {
+    updateAuthUI();
+    
+    if (window.location.hash === '#community') showCommunityTab();
+    
+    window.addEventListener('hashchange', () => {
+        if (window.location.hash === '#community') showCommunityTab();
+        else if (window.location.hash === '') showGamesTab();
+    });
+
+    // Auth Switch (Login ↔ Signup)
+    const switchLink = document.getElementById('authSwitchLink');
+    let isSignUp = false;
+    if (switchLink) {
+        switchLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            isSignUp = !isSignUp;
+            const submitBtn = document.getElementById('authSubmitBtn');
+            const switchText = document.getElementById('authSwitchText');
+            const authTitle = document.querySelector('#communityAuth h2');
+            if (isSignUp) {
+                authTitle.textContent = "REGISTER";
+                submitBtn.textContent = "Create Account";
+                switchText.textContent = "Already have an account?";
+                switchLink.textContent = "Log In";
+            } else {
+                authTitle.textContent = "COMMUNITY";
+                submitBtn.textContent = "Log In";
+                switchText.textContent = "Don't have an account?";
+                switchLink.textContent = "Sign Up";
+            }
+            document.getElementById('authError').style.display = 'none';
+        });
+    }
+
+    // Auth Form Submit
+    const authForm = document.getElementById('authForm');
+    if (authForm) {
+        authForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const usernameInput = document.getElementById('authUsername');
+            const passwordInput = document.getElementById('authPassword');
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!username || !password) { showAuthError("Please enter both username and password."); return; }
+            if (username.length < 3) { showAuthError("Username must be at least 3 characters."); return; }
+            if (password.length < 5) { showAuthError("Password must be at least 5 characters."); return; }
+
+            let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+
+            if (isSignUp) {
+                if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+                    showAuthError("Username already taken."); return;
+                }
+                const newUser = { username, password };
+                users.push(newUser);
+                localStorage.setItem('spc_users', JSON.stringify(users));
+                doLogin(newUser);
+            } else {
+                const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+                if (!user) { showAuthError("Invalid username or password."); return; }
+                doLogin(user);
+            }
+
+            usernameInput.value = '';
+            passwordInput.value = '';
+            document.getElementById('authError').style.display = 'none';
+        });
+    }
+
+    function showAuthError(msg) {
+        const el = document.getElementById('authError');
+        if (el) { el.textContent = msg; el.style.display = 'block'; }
+    }
+
+    function doLogin(user) {
+        currentUser = user;
+        localStorage.setItem('spc_current_user', JSON.stringify(user));
+        updateAuthUI();
+        initPeer();
+        renderCommunityPanel();
+        showNotification(`Logged in as ${user.username}`, 'success');
+    }
+
+    // Header Login Button
+    const headerLoginBtn = document.getElementById('headerLoginBtn');
+    if (headerLoginBtn) {
+        headerLoginBtn.addEventListener('click', () => {
+            if (document.getElementById('communityView')) showCommunityTab();
+            else window.location.href = 'index.html#community';
+        });
+    }
+
+    // Header Logout Button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            // Destroy peer
+            if (peer && !peer.destroyed) peer.destroy();
+            peer = null;
+            activeConns = {};
+            activeCall = null;
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            activeChats = {};
+            selectedUser = null;
+            currentUser = null;
+            localStorage.removeItem('spc_current_user');
+            updateAuthUI();
+            const communityChat = document.getElementById('communityChat');
+            const communityAuth = document.getElementById('communityAuth');
+            if (communityChat && communityAuth) {
+                communityChat.style.display = 'none';
+                communityAuth.style.display = 'block';
+            }
+            showNotification("Logged out", "info");
+        });
+    }
+
+    // If already logged in from a previous session, init peer
+    if (currentUser) initPeer();
+}
+
+// Update authentication UI elements globally
+function updateAuthUI() {
+    const headerLoginBtn = document.getElementById('headerLoginBtn');
+    const userBar = document.getElementById('userBar');
+    const userWelcome = document.getElementById('userWelcome');
+    
+    if (currentUser) {
+        if (headerLoginBtn) headerLoginBtn.style.display = 'none';
+        if (userBar) userBar.style.display = 'flex';
+        if (userWelcome) userWelcome.textContent = `Welcome, ${currentUser.username}`;
+    } else {
+        if (headerLoginBtn) headerLoginBtn.style.display = 'inline-flex';
+        if (userBar) userBar.style.display = 'none';
+    }
+}
+
+// ─── PEEJS INIT ──────────────────────────────────────────────────────────────
+function initPeer() {
+    if (!currentUser) return;
+    if (peer && !peer.destroyed) return; // already running
+
+    const myPeerId = usernameToPeerId(currentUser.username);
+    setPeerStatus('Connecting...');
+
+    try {
+        peer = new Peer(myPeerId, {
+            // Uses free PeerJS cloud broker for signalling
+            debug: 0
+        });
+    } catch(e) {
+        setPeerStatus('PeerJS unavailable');
+        return;
+    }
+
+    peer.on('open', (id) => {
+        setPeerStatus('Online ✓');
+        showNotification('You are now online in Community!', 'success');
+    });
+
+    peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') {
+            // Someone with this username already connected — still usable
+            setPeerStatus('Online (session conflict)');
+        } else {
+            setPeerStatus('Connection error');
+            console.warn('Peer error:', err);
+        }
+    });
+
+    peer.on('disconnected', () => {
+        setPeerStatus('Reconnecting...');
+        peer.reconnect();
+    });
+
+    // ── Incoming DATA connection ───────────────────────────────────────────
+    peer.on('connection', (conn) => {
+        setupDataConn(conn);
+    });
+
+    // ── Incoming VOICE call ────────────────────────────────────────────────
+    peer.on('call', (call) => {
+        const callerUsername = peerIdToUsername(call.peer);
+        showIncomingCallUI(callerUsername, call);
+    });
+}
+
+function peerIdToUsername(peerId) {
+    // Reverse: 'spc-johndoe' → 'johndoe'
+    return peerId.replace(/^spc-/, '');
+}
+
+function setPeerStatus(text) {
+    const el = document.getElementById('peerStatusIndicator');
+    if (el) el.textContent = text;
+}
+
+// ─── DATA CONNECTION SETUP ───────────────────────────────────────────────────
+function setupDataConn(conn) {
+    const username = peerIdToUsername(conn.peer);
+
+    conn.on('open', () => {
+        activeConns[conn.peer] = conn;
+        addActiveChatTab(username, conn.peer);
+
+        // If this person messaged us, switch to their chat
+        if (!selectedUser || selectedUser.peerId !== conn.peer) {
+            // Just add the tab; don't force-switch unless they sent a message
+        }
+    });
+
+    conn.on('data', (data) => {
+        if (data.type === 'message') {
+            const msg = {
+                sender: username,
+                text: escapeHTML(data.text),
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            saveMsg(username, msg);
+
+            // If we're currently viewing this chat, re-render
+            if (selectedUser && selectedUser.username.toLowerCase() === username.toLowerCase()) {
+                renderChatMessages();
+            } else {
+                // Flash the tab
+                flashTab(username);
+                showNotification(`💬 ${username}: ${data.text.substring(0, 40)}`, 'info');
+            }
+        }
+    });
+
+    conn.on('close', () => {
+        delete activeConns[conn.peer];
+        removeActiveChatTab(username);
+        if (selectedUser && selectedUser.peerId === conn.peer) {
+            appendSystemMsg(`${username} disconnected.`);
+        }
+    });
+
+    conn.on('error', (err) => {
+        console.warn('Conn error', err);
+    });
+}
+
+// ─── RENDER COMMUNITY PANEL ───────────────────────────────────────────────────
+function renderCommunityPanel() {
+    const communityAuth = document.getElementById('communityAuth');
+    const communityChat = document.getElementById('communityChat');
+    if (!communityAuth || !communityChat) return;
+
+    if (!currentUser) {
+        communityAuth.style.display = 'block';
+        communityChat.style.display = 'none';
+    } else {
+        communityAuth.style.display = 'none';
+        communityChat.style.display = 'block';
+        initChatHandlers();
+        initCallHandlers();
+        renderActiveChatTabs();
+    }
+}
+
+// ─── ACTIVE CHAT TABS (left sidebar) ─────────────────────────────────────────
+function renderActiveChatTabs() {
+    const list = document.getElementById('activeChatsList');
+    if (!list) return;
+    const usernames = Object.keys(activeChats);
+    if (usernames.length === 0) {
+        list.innerHTML = `<div style="padding:1rem; color:var(--text-muted); font-size:0.82rem; text-align:center;">No chats yet.<br>Type a username above and hit Chat.</div>`;
+        return;
+    }
+    list.innerHTML = usernames.map(uname => {
+        const isActive = selectedUser && selectedUser.username.toLowerCase() === uname.toLowerCase();
+        const msgs = activeChats[uname] || [];
+        const last = msgs[msgs.length - 1];
+        const initials = uname.substring(0, 2).toUpperCase();
+        return `
+            <div class="online-user-item ${isActive ? 'active' : ''}" data-username="${uname}" id="chattab-${uname.toLowerCase()}" style="cursor:pointer;">
+                <div style="position:relative; flex-shrink:0;">
+                    <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;font-weight:800;color:white;font-size:0.8rem;">${initials}</div>
+                    <span class="user-status-dot" style="position:absolute;bottom:0;right:0;border:2px solid var(--bg-sidebar);"></span>
+                </div>
+                <div style="flex:1;overflow:hidden;">
+                    <div style="font-weight:600;font-size:0.9rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${uname}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${last ? last.text.substring(0,30) : 'No messages yet'}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    list.querySelectorAll('.online-user-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const uname = item.getAttribute('data-username');
+            openChatWith(uname);
+        });
+    });
+}
+
+function addActiveChatTab(username) {
+    if (!activeChats[username]) activeChats[username] = [];
+    renderActiveChatTabs();
+}
+
+function removeActiveChatTab(username) {
+    // Keep chat history but mark disconnected
+    renderActiveChatTabs();
+}
+
+function flashTab(username) {
+    const tab = document.getElementById('chattab-' + username.toLowerCase());
+    if (tab) {
+        tab.style.background = 'rgba(139,92,246,0.2)';
+        setTimeout(() => { tab.style.background = ''; }, 1500);
+    }
+}
+
+// ─── OPEN CHAT WITH USER ─────────────────────────────────────────────────────
+function openChatWith(username) {
+    const peerId = usernameToPeerId(username);
+    selectedUser = { username, peerId };
+
+    document.getElementById('chatEmptyState').style.display = 'none';
+    document.getElementById('chatActiveState').style.display = 'flex';
+    document.getElementById('activeUserName').textContent = username;
+    document.getElementById('activeUserActivity').textContent = activeConns[peerId] ? 'Connected via P2P' : 'Not connected';
+    document.getElementById('activeUserAvatar').textContent = username.substring(0, 2).toUpperCase();
+
+    renderActiveChatTabs();
+    renderChatMessages();
+}
+
+// ─── MESSAGES STORE ───────────────────────────────────────────────────────────
+function saveMsg(withUsername, msg) {
+    if (!activeChats[withUsername]) activeChats[withUsername] = [];
+    activeChats[withUsername].push(msg);
+    renderActiveChatTabs();
+}
+
+function appendSystemMsg(text) {
+    const messagesContainer = document.getElementById('chatMessages');
+    if (!messagesContainer) return;
+    const div = document.createElement('div');
+    div.style.cssText = 'text-align:center;color:var(--text-muted);font-size:0.8rem;padding:0.5rem;';
+    div.textContent = text;
+    messagesContainer.appendChild(div);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// ─── RENDER MESSAGES ─────────────────────────────────────────────────────────
+function renderChatMessages() {
+    const messagesContainer = document.getElementById('chatMessages');
+    if (!messagesContainer || !selectedUser) return;
+
+    const history = activeChats[selectedUser.username] || [];
+
+    messagesContainer.innerHTML = history.length === 0
+        ? `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.9rem;">Say hi to ${selectedUser.username}!</div>`
+        : history.map(msg => {
+            const isSent = msg.sender === currentUser.username || msg.sender === 'You';
+            const isSystem = msg.sender === 'System';
+            if (isSystem) {
+                return `<div style="text-align:center;color:var(--text-muted);font-size:0.8rem;padding:0.5rem;">${msg.text}</div>`;
+            }
+            return `
+                <div class="chat-bubble ${isSent ? 'sent' : 'received'}">
+                    <div style="font-weight:700;font-size:0.75rem;margin-bottom:0.15rem;color:${isSent ? 'rgba(255,255,255,0.8)' : 'var(--primary)'};">${msg.sender}</div>
+                    <div>${msg.text}</div>
+                    <span class="timestamp">${msg.time}</span>
+                </div>
+            `;
+        }).join('');
+
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// ─── CHAT FORM HANDLER ───────────────────────────────────────────────────────
+function initChatHandlers() {
+    // BEGIN CHAT button
+    const btnStart = document.getElementById('btnStartChat');
+    if (btnStart && !btnStart._bound) {
+        btnStart._bound = true;
+        btnStart.addEventListener('click', () => {
+            const input = document.getElementById('peerUsernameInput');
+            const targetUsername = input.value.trim();
+            if (!targetUsername) return;
+            if (targetUsername.toLowerCase() === currentUser.username.toLowerCase()) {
+                showNotification("You can't chat with yourself!", 'error'); return;
+            }
+
+            const statusEl = document.getElementById('peerConnectStatus');
+            statusEl.textContent = 'Connecting...';
+            input.value = '';
+
+            const targetPeerId = usernameToPeerId(targetUsername);
+
+            if (!peer || peer.destroyed) {
+                statusEl.textContent = 'Not connected. Refresh the page.'; return;
+            }
+
+            const conn = peer.connect(targetPeerId, { reliable: true });
+
+            conn.on('open', () => {
+                statusEl.textContent = `Connected to ${targetUsername}!`;
+                activeConns[targetPeerId] = conn;
+                if (!activeChats[targetUsername]) activeChats[targetUsername] = [];
+                addActiveChatTab(targetUsername, targetPeerId);
+                openChatWith(targetUsername);
+                setTimeout(() => { statusEl.textContent = ''; }, 3000);
+            });
+
+            conn.on('error', () => {
+                statusEl.textContent = `${targetUsername} is not online.`;
+                setTimeout(() => { statusEl.textContent = ''; }, 4000);
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'message') {
+                    const msg = {
+                        sender: targetUsername,
+                        text: escapeHTML(data.text),
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    };
+                    saveMsg(targetUsername, msg);
+                    if (selectedUser && selectedUser.username.toLowerCase() === targetUsername.toLowerCase()) {
+                        renderChatMessages();
+                    } else {
+                        flashTab(targetUsername);
+                    }
+                }
+            });
+
+            conn.on('close', () => {
+                delete activeConns[targetPeerId];
+                removeActiveChatTab(targetUsername);
+                if (selectedUser && selectedUser.peerId === targetPeerId) {
+                    appendSystemMsg(`${targetUsername} disconnected.`);
+                }
+            });
+
+            setupDataConn(conn);
+        });
+
+        // Also allow pressing Enter in the username input
+        document.getElementById('peerUsernameInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); btnStart.click(); }
+        });
+    }
+
+    // SEND MESSAGE form
+    const chatForm = document.getElementById('chatForm');
+    if (chatForm && !chatForm._bound) {
+        chatForm._bound = true;
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || !selectedUser) return;
+
+            const msg = {
+                sender: currentUser.username,
+                text: escapeHTML(text),
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            saveMsg(selectedUser.username, msg);
+            renderChatMessages();
+            input.value = '';
+
+            // Send over P2P if connected
+            const conn = activeConns[selectedUser.peerId];
+            if (conn && conn.open) {
+                conn.send({ type: 'message', text });
+            } else {
+                appendSystemMsg('⚠ Not connected — message saved locally only.');
+            }
+        });
+    }
+}
+
+// ─── VOICE CALL HANDLERS ─────────────────────────────────────────────────────
+let callDurationSeconds = 0;
+let callTimerInterval = null;
+
+function initCallHandlers() {
+    const btnCall = document.getElementById('btnCallUser');
+    if (!btnCall || btnCall._bound) return;
+    btnCall._bound = true;
+
+    const overlay = document.getElementById('callOverlay');
+    const hangUpBtn = document.getElementById('btnCallDecline');
+    const muteBtn = document.getElementById('btnCallMute');
+
+    // ── Outgoing call ──────────────────────────────────────────────────────
+    btnCall.addEventListener('click', async () => {
+        if (!selectedUser) return;
+        if (!peer || peer.destroyed) { showNotification('Not connected to network', 'error'); return; }
+
+        // Show overlay immediately
+        overlay.style.display = 'flex';
+        document.getElementById('callUserName').textContent = selectedUser.username;
+        document.getElementById('callAvatar').textContent = selectedUser.username.substring(0, 2).toUpperCase();
+        setCallStatus('ringing');
+        document.getElementById('callVisualizer').style.display = 'none';
+        muteBtn.classList.remove('active');
+        muteBtn.style.background = 'rgba(255,255,255,0.08)';
+        callDurationSeconds = 0;
+
+        // Request mic
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        } catch (err) {
+            overlay.style.display = 'none';
+            showNotification('Microphone access denied. Allow mic to call.', 'error');
+            return;
+        }
+
+        playSyntheticRing();
+
+        // Place the call via PeerJS
+        const call = peer.call(selectedUser.peerId, localStream);
+        activeCall = call;
+
+        call.on('stream', (remoteStream) => {
+            stopSyntheticRing();
+            playConnectChime();
+            setCallStatus('connected');
+            document.getElementById('callVisualizer').style.display = 'flex';
+            const audio = document.getElementById('remoteAudio');
+            if (audio) { audio.srcObject = remoteStream; audio.play().catch(() => {}); }
+            startCallTimer();
+        });
+
+        call.on('close', () => hangUpCall('Call ended'));
+        call.on('error', () => {
+            stopSyntheticRing();
+            overlay.style.display = 'none';
+            showNotification(`${selectedUser.username} is not available`, 'error');
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+        });
+
+        // If no answer after 20s, give up
+        setTimeout(() => {
+            if (activeCall === call && document.getElementById('callStatus').dataset.state === 'ringing') {
+                hangUpCall('No answer');
+            }
+        }, 20000);
+    });
+
+    hangUpBtn.addEventListener('click', () => hangUpCall('Call ended'));
+
+    muteBtn.addEventListener('click', () => {
+        muteBtn.classList.toggle('active');
+        if (localStream) {
+            localStream.getAudioTracks().forEach(t => { t.enabled = !muteBtn.classList.contains('active'); });
+        }
+        if (muteBtn.classList.contains('active')) {
+            muteBtn.style.background = 'rgba(244,63,94,0.2)';
+            showNotification('Microphone muted', 'info');
+        } else {
+            muteBtn.style.background = 'rgba(255,255,255,0.08)';
+            showNotification('Microphone unmuted', 'info');
+        }
+    });
+}
+
+function setCallStatus(state) {
+    const el = document.getElementById('callStatus');
+    if (!el) return;
+    el.dataset.state = state;
+    if (state === 'ringing') {
+        el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:8px;height:8px;background:#eab308;border-radius:50%;"></span>
+            Ringing...
+        </span>`;
+    } else if (state === 'connected') {
+        el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:50%;"></span>
+            <span id="callDuration">Connected (00:00)</span>
+        </span>`;
+    }
+}
+
+function startCallTimer() {
+    callDurationSeconds = 0;
+    if (callTimerInterval) clearInterval(callTimerInterval);
+    callTimerInterval = setInterval(() => {
+        callDurationSeconds++;
+        const mins = String(Math.floor(callDurationSeconds / 60)).padStart(2, '0');
+        const secs = String(callDurationSeconds % 60).padStart(2, '0');
+        const el = document.getElementById('callDuration');
+        if (el) el.textContent = `Connected (${mins}:${secs})`;
+    }, 1000);
+}
+
+function showIncomingCallUI(callerUsername, call) {
+    const overlay = document.getElementById('incomingCallOverlay');
+    if (!overlay) return;
+
+    document.getElementById('incomingCallName').textContent = callerUsername;
+    document.getElementById('incomingCallAvatar').textContent = callerUsername.substring(0, 2).toUpperCase();
+    overlay.style.display = 'flex';
+    playSyntheticRing();
+
+    // Make sure tab exists for caller
+    if (!activeChats[callerUsername]) activeChats[callerUsername] = [];
+    addActiveChatTab(callerUsername);
+
+    const acceptBtn = document.getElementById('btnAcceptCall');
+    const declineBtn = document.getElementById('btnDeclineCall');
+
+    const doAccept = async () => {
+        stopSyntheticRing();
+        overlay.style.display = 'none';
+        cleanup();
+
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        } catch {
+            showNotification('Microphone access denied.', 'error'); return;
+        }
+
+        call.answer(localStream);
+        activeCall = call;
+
+        // Show active call overlay
+        const callOverlay = document.getElementById('callOverlay');
+        callOverlay.style.display = 'flex';
+        document.getElementById('callUserName').textContent = callerUsername;
+        document.getElementById('callAvatar').textContent = callerUsername.substring(0, 2).toUpperCase();
+        setCallStatus('connected');
+        document.getElementById('callVisualizer').style.display = 'flex';
+        playConnectChime();
+        startCallTimer();
+
+        call.on('stream', (remoteStream) => {
+            const audio = document.getElementById('remoteAudio');
+            if (audio) { audio.srcObject = remoteStream; audio.play().catch(() => {}); }
+        });
+
+        call.on('close', () => hangUpCall('Call ended'));
+    };
+
+    const doDecline = () => {
+        stopSyntheticRing();
+        overlay.style.display = 'none';
+        call.close();
+        cleanup();
+    };
+
+    function cleanup() {
+        acceptBtn.removeEventListener('click', doAccept);
+        declineBtn.removeEventListener('click', doDecline);
+    }
+
+    acceptBtn.addEventListener('click', doAccept);
+    declineBtn.addEventListener('click', doDecline);
+}
+
+function hangUpCall(logStatus) {
+    stopSyntheticRing();
+    if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+    if (activeCall) { try { activeCall.close(); } catch(e) {} activeCall = null; }
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+
+    const audio = document.getElementById('remoteAudio');
+    if (audio) { audio.srcObject = null; }
+
+    const overlay = document.getElementById('callOverlay');
+    if (overlay) overlay.style.display = 'none';
+
+    playDisconnectBeep();
+
+    if (selectedUser) {
+        const mins = String(Math.floor(callDurationSeconds / 60)).padStart(2, '0');
+        const secs = String(callDurationSeconds % 60).padStart(2, '0');
+        const systemMsg = {
+            sender: 'System',
+            text: `📞 Voice Call — ${logStatus} (${mins}:${secs})`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        saveMsg(selectedUser.username, systemMsg);
+        renderChatMessages();
+    }
+}
+
+// ─── AUDIO SYNTHESIZERS ──────────────────────────────────────────────────────
+let callAudioCtx = null;
+let callRingInterval = null;
+let ringOsc1 = null;
+let ringOsc2 = null;
+
+function playSyntheticRing() {
+    try {
+        callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const ring = () => {
+            if (!callAudioCtx) return;
+            const gain = callAudioCtx.createGain();
+            gain.gain.setValueAtTime(0, callAudioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.15, callAudioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.15, callAudioCtx.currentTime + 1.2);
+            gain.gain.linearRampToValueAtTime(0, callAudioCtx.currentTime + 1.3);
+            ringOsc1 = callAudioCtx.createOscillator();
+            ringOsc2 = callAudioCtx.createOscillator();
+            ringOsc1.type = 'sine'; ringOsc2.type = 'sine';
+            ringOsc1.frequency.setValueAtTime(440, callAudioCtx.currentTime);
+            ringOsc2.frequency.setValueAtTime(480, callAudioCtx.currentTime);
+            ringOsc1.connect(gain); ringOsc2.connect(gain);
+            gain.connect(callAudioCtx.destination);
+            ringOsc1.start(); ringOsc2.start();
+            ringOsc1.stop(callAudioCtx.currentTime + 1.3);
+            ringOsc2.stop(callAudioCtx.currentTime + 1.3);
+        };
+        ring();
+        callRingInterval = setInterval(ring, 3000);
+    } catch(e) {}
+}
+
+function stopSyntheticRing() {
+    if (callRingInterval) { clearInterval(callRingInterval); callRingInterval = null; }
+    try { if (ringOsc1) ringOsc1.stop(); } catch(e) {}
+    try { if (ringOsc2) ringOsc2.stop(); } catch(e) {}
+    ringOsc1 = null; ringOsc2 = null;
+    if (callAudioCtx) { try { callAudioCtx.close(); } catch(e) {} callAudioCtx = null; }
+}
+
+function playConnectChime() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.45);
+        setTimeout(() => ctx.close(), 1000);
+    } catch(e) {}
+}
+
+function playDisconnectBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(329.63, ctx.currentTime);
+        osc.frequency.setValueAtTime(293.66, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.45);
+        setTimeout(() => ctx.close(), 1000);
+    } catch(e) {}
+}
+
+// ─── UTILITIES ───────────────────────────────────────────────────────────────
+function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 // Export for potential module usage

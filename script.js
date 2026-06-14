@@ -916,6 +916,11 @@ function initCommunityAuth() {
         localStorage.setItem('spc_current_user', JSON.stringify(user));
         updateAuthUI();
         initPeer();
+        // Hide auth form immediately, show chat
+        const ca = document.getElementById('communityAuth');
+        const cc = document.getElementById('communityChat');
+        if (ca) ca.style.display = 'none';
+        if (cc) cc.style.display = 'block';
         renderCommunityPanel();
         showNotification(`Welcome, ${user.username}!`, 'success');
     }
@@ -1059,13 +1064,42 @@ function handleIncomingData(conn, data) {
             break;
         }
         case 'group_invite': {
-            // Someone added us to a group
             if (!groupChats[data.groupId]) {
-                groupChats[data.groupId] = { name: data.groupName, members: data.members };
+                groupChats[data.groupId] = { name: data.groupName, members: data.members, photo: data.photo || null, admin: data.admin || senderName };
                 localStorage.setItem('spc_groups', JSON.stringify(groupChats));
                 if (!chatHistory[data.groupId]) chatHistory[data.groupId] = [];
-                addChatTab({ type: 'group', id: data.groupId, name: data.groupName, members: data.members });
+                addChatTab({ type: 'group', id: data.groupId, name: data.groupName, members: data.members, photo: data.photo, admin: data.admin });
                 showNotification(`👥 You were added to "${data.groupName}"`, 'success');
+            }
+            break;
+        }
+        case 'group_update': {
+            if (data.action === 'delete') {
+                delete groupChats[data.groupId];
+                delete chatHistory[data.groupId];
+                localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                if (selectedChat && selectedChat.id === data.groupId) {
+                    selectedChat = null;
+                    document.getElementById('chatEmptyState').style.display = 'flex';
+                    document.getElementById('chatActiveState').style.display = 'none';
+                }
+                refreshChatList();
+                showNotification(`Group "${data.name}" was deleted by admin.`, 'info');
+            } else if (data.action === 'update' || data.action === 'remove') {
+                if (groupChats[data.groupId]) {
+                    groupChats[data.groupId].name = data.name;
+                    groupChats[data.groupId].members = data.members;
+                    groupChats[data.groupId].photo = data.photo;
+                    if (data.admin) groupChats[data.groupId].admin = data.admin;
+                    localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                    if (selectedChat && selectedChat.id === data.groupId) {
+                        selectedChat.name = data.name;
+                        selectedChat.members = data.members;
+                        selectedChat.photo = data.photo;
+                        openChat(selectedChat);
+                    }
+                    refreshChatList();
+                }
             }
             break;
         }
@@ -1470,7 +1504,9 @@ function refreshChatList() {
             <div class="online-user-item ${isActive ? 'active' : ''}" data-chatid="${chat.id}" id="chattab-${chat.id}" style="cursor:pointer;gap:0.6rem;">
                 <div style="position:relative;flex-shrink:0;">
                     ${chat.type === 'group'
-                        ? `<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1rem;">👥</div>`
+                        ? (chat.photo
+                            ? `<img src="${chat.photo}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`
+                            : `<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1rem;">👥</div>`)
                         : avatarEl(avatarUser, 38, '0.8rem')
                     }
                     <span style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:${dotColor};border:2px solid var(--bg-sidebar);"></span>
@@ -1519,21 +1555,30 @@ function openChat(chat) {
     document.getElementById('chatEmptyState').style.display = 'none';
     document.getElementById('chatActiveState').style.display = 'flex';
 
-    // Header
+    // Avatar in header
     const avatarUser = chat.type === 'dm' ? { username: chat.name, avatar: getAvatarFor(chat.name) } : null;
+    const groupData = chat.type === 'group' ? (groupChats[chat.id] || chat) : null;
     document.getElementById('activeChatAvatarWrap').innerHTML = chat.type === 'group'
-        ? `<div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.3rem;">👥</div>`
+        ? (groupData && groupData.photo
+            ? `<img src="${groupData.photo}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;">`
+            : `<div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.3rem;">👥</div>`)
         : avatarEl(avatarUser, 42, '1rem');
+
     document.getElementById('activeUserName').textContent = chat.name;
     document.getElementById('activeUserActivity').textContent = chat.type === 'group'
-        ? `${(chat.members||[]).length} members`
+        ? `${(groupData && groupData.members ? groupData.members.length : (chat.members||[]).length)} members`
         : (activeConns[usernameToPeerId(chat.name)] ? '● Connected' : '○ Not connected');
 
-    // Show/hide call button for DMs only; show group call for groups
+    // Call buttons
     const btnCall = document.getElementById('btnCallUser');
     const btnGroupCall = document.getElementById('btnGroupCallUser');
+    const btnGroupSettings = document.getElementById('btnGroupSettings');
+    const btnAddToCall = document.getElementById('btnAddToCall');
+
     if (btnCall) btnCall.style.display = chat.type === 'dm' ? 'inline-flex' : 'none';
     if (btnGroupCall) btnGroupCall.style.display = chat.type === 'group' ? 'inline-flex' : 'none';
+    if (btnGroupSettings) btnGroupSettings.style.display = chat.type === 'group' ? 'inline-flex' : 'none';
+    if (btnAddToCall) btnAddToCall.style.display = 'none'; // shown during active 1:1 call
 
     refreshChatList();
     renderMessages();
@@ -1616,6 +1661,49 @@ function bindChatHandlers() {
         btnCreateGroup.addEventListener('click', showCreateGroupModal);
     }
 
+    // Emoji picker
+    const btnEmoji = document.getElementById('btnEmojiPicker');
+    const emojiPanel = document.getElementById('emojiPanel');
+    const emojiGrid = document.getElementById('emojiGrid');
+    if (btnEmoji && emojiPanel && emojiGrid && !btnEmoji._bound) {
+        btnEmoji._bound = true;
+        const EMOJIS = [
+            '😀','😂','🤣','😊','😍','🥰','😎','🤩','😜','😏',
+            '😢','😭','😤','😡','🤬','🤯','😱','🥳','🤔','🫡',
+            '👋','👍','👎','❤️','🔥','💯','✅','❌','🎮','🏆',
+            '💀','👀','🫶','🤝','💪','🙌','🎉','🎯','⚡','🌟',
+            '😴','🤢','🤮','🥴','🤧','🥺','😇','🤠','👻','💩',
+            '🐶','🐱','🐸','🦊','🐼','🦁','🐙','🦋','🌈','⭐',
+            '🍕','🍔','🍟','🌮','🍜','🧋','🍩','🎂','🍭','🍺',
+            '⚽','🏀','🎾','🎮','🕹️','🎲','🎸','🎵','🎤','📱'
+        ];
+        emojiGrid.innerHTML = EMOJIS.map(e =>
+            `<button type="button" class="emoji-btn" style="background:none;border:none;cursor:pointer;font-size:1.3rem;padding:0.2rem;border-radius:6px;transition:0.15s;line-height:1.3;" onmouseover="this.style.background='rgba(139,92,246,0.15)'" onmouseout="this.style.background='none'">${e}</button>`
+        ).join('');
+
+        btnEmoji.addEventListener('click', e => {
+            e.stopPropagation();
+            emojiPanel.style.display = emojiPanel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        emojiGrid.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const input = document.getElementById('chatInput');
+                const pos = input.selectionStart || input.value.length;
+                input.value = input.value.slice(0, pos) + btn.textContent + input.value.slice(pos);
+                input.focus();
+                input.setSelectionRange(pos + btn.textContent.length, pos + btn.textContent.length);
+                emojiPanel.style.display = 'none';
+            });
+        });
+
+        document.addEventListener('click', e => {
+            if (!btnEmoji.contains(e.target) && !emojiPanel.contains(e.target)) {
+                emojiPanel.style.display = 'none';
+            }
+        });
+    }
+
     // Send message
     const chatForm = document.getElementById('chatForm');
     if (chatForm && !chatForm._bound) {
@@ -1656,58 +1744,164 @@ function showCreateGroupModal() {
     if (modal) modal.remove();
     modal = document.createElement('div');
     modal.id = 'createGroupModal';
-    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(10px);z-index:2000;display:flex;align-items:center;justify-content:center;`;
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(12px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    // Get existing DM contacts as quick-add chips
+    const dmContacts = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase()))
+        .filter(Boolean);
+
+    const chipHTML = dmContacts.length > 0
+        ? `<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.4rem;" id="contactChips">
+            ${dmContacts.map(u => `
+                <button type="button" class="contact-chip" data-username="${escapeHTML(u)}"
+                    style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.7rem;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius-full);cursor:pointer;font-size:0.8rem;color:var(--text-muted);transition:0.2s;">
+                    ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 20, '0.5rem')}
+                    ${escapeHTML(u)}
+                </button>
+            `).join('')}
+           </div>`
+        : '';
+
     modal.innerHTML = `
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;width:380px;max-width:95vw;">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;width:420px;max-width:97vw;max-height:92vh;overflow-y:auto;">
             <h3 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;margin-bottom:1.5rem;color:var(--text-main);letter-spacing:1px;">CREATE GROUP CHAT</h3>
-            <div style="display:flex;flex-direction:column;gap:1rem;">
-                <div>
-                    <label style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Group Name</label>
-                    <input id="groupNameInput" type="text" placeholder="e.g. Slope Squad" maxlength="30" style="width:100%;padding:0.65rem 1rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;">
+            <div style="display:flex;flex-direction:column;gap:1.1rem;">
+
+                <!-- Group photo + name row -->
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="position:relative;cursor:pointer;flex-shrink:0;" id="groupPhotoClick" title="Set group photo">
+                        <div id="groupPhotoPreview" style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">👥</div>
+                        <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-card);">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                        <input type="file" id="groupPhotoFile" accept="image/*" style="display:none;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Group Name</label>
+                        <input id="groupNameInput" type="text" placeholder="e.g. Slope Squad" maxlength="30"
+                            style="width:100%;padding:0.6rem 0.9rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;font-size:0.9rem;">
+                    </div>
                 </div>
+
+                <!-- Members from existing chats -->
+                ${dmContacts.length > 0 ? `
                 <div>
-                    <label style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Add Members (usernames, comma-separated)</label>
-                    <input id="groupMembersInput" type="text" placeholder="e.g. alex, jordan, sam" style="width:100%;padding:0.65rem 1rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;">
+                    <label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Add from your chats</label>
+                    ${chipHTML}
+                </div>` : ''}
+
+                <!-- Manual username entry -->
+                <div>
+                    <label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Or type usernames</label>
+                    <input id="groupMembersInput" type="text" placeholder="e.g. alex, jordan"
+                        style="width:100%;padding:0.6rem 0.9rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;font-size:0.9rem;">
+                    <p style="font-size:0.73rem;color:var(--text-muted);margin-top:0.3rem;">Comma-separated. Chips above auto-fill this.</p>
                 </div>
+
+                <!-- Selected members preview -->
+                <div id="selectedMembersPreview" style="display:none;flex-wrap:wrap;gap:0.4rem;padding:0.6rem;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius-md);"></div>
+
                 <div id="createGroupError" style="color:var(--accent);font-size:0.85rem;display:none;"></div>
-                <div style="display:flex;gap:0.75rem;margin-top:0.5rem;">
+
+                <div style="display:flex;gap:0.75rem;margin-top:0.25rem;">
                     <button id="btnCancelGroup" class="btn btn-secondary" style="flex:1;justify-content:center;">Cancel</button>
-                    <button id="btnConfirmGroup" class="btn btn-primary" style="flex:1;justify-content:center;">Create</button>
+                    <button id="btnConfirmGroup" class="btn btn-primary" style="flex:1;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Create Group
+                    </button>
                 </div>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
+
+    let groupPhotoData = null;
+    let chipSelected = new Set();
+
+    // Group photo upload
+    document.getElementById('groupPhotoClick').addEventListener('click', () => document.getElementById('groupPhotoFile').click());
+    document.getElementById('groupPhotoFile').addEventListener('change', e => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            groupPhotoData = ev.target.result;
+            document.getElementById('groupPhotoPreview').innerHTML = `<img src="${groupPhotoData}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Contact chip toggle
+    modal.querySelectorAll('.contact-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const uname = chip.getAttribute('data-username');
+            if (chipSelected.has(uname)) {
+                chipSelected.delete(uname);
+                chip.style.background = 'rgba(255,255,255,0.06)';
+                chip.style.borderColor = 'var(--border)';
+                chip.style.color = 'var(--text-muted)';
+            } else {
+                chipSelected.add(uname);
+                chip.style.background = 'rgba(139,92,246,0.2)';
+                chip.style.borderColor = 'var(--primary)';
+                chip.style.color = 'white';
+            }
+            updateMemberInput();
+        });
+    });
+
+    function updateMemberInput() {
+        const manual = document.getElementById('groupMembersInput').value
+            .split(',').map(s => s.trim()).filter(s => s && !chipSelected.has(s));
+        const all = [...chipSelected, ...manual];
+        document.getElementById('groupMembersInput').value = all.join(', ');
+
+        const preview = document.getElementById('selectedMembersPreview');
+        if (all.length > 0) {
+            preview.style.display = 'flex';
+            preview.innerHTML = all.map(u => `
+                <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-full);font-size:0.78rem;color:var(--text-main);">
+                    ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 16, '0.4rem')} ${escapeHTML(u)}
+                </span>`).join('');
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+    document.getElementById('groupMembersInput').addEventListener('input', updateMemberInput);
+
     document.getElementById('btnCancelGroup').addEventListener('click', () => modal.remove());
     document.getElementById('btnConfirmGroup').addEventListener('click', () => {
         const name = document.getElementById('groupNameInput').value.trim();
-        const membersRaw = document.getElementById('groupMembersInput').value.trim();
-        if (!name) { document.getElementById('createGroupError').textContent = 'Enter a group name.'; document.getElementById('createGroupError').style.display = 'block'; return; }
-        const members = [currentUser.username, ...membersRaw.split(',').map(m => m.trim()).filter(m => m && m.toLowerCase() !== currentUser.username.toLowerCase())];
+        const membersRaw = document.getElementById('groupMembersInput').value;
+        if (!name) {
+            document.getElementById('createGroupError').textContent = 'Enter a group name.';
+            document.getElementById('createGroupError').style.display = 'block'; return;
+        }
+        const parsedMembers = membersRaw.split(',').map(m => m.trim()).filter(m => m && m.toLowerCase() !== currentUser.username.toLowerCase());
+        const members = [currentUser.username, ...parsedMembers];
         const gid = groupId(name) + '-' + Date.now();
-        groupChats[gid] = { name, members };
+        groupChats[gid] = { name, members, photo: groupPhotoData, admin: currentUser.username };
         localStorage.setItem('spc_groups', JSON.stringify(groupChats));
         if (!chatHistory[gid]) chatHistory[gid] = [];
-        // Invite all members via P2P
-        members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase()).forEach(m => {
+        // Invite all members
+        parsedMembers.forEach(m => {
             const conn = activeConns[usernameToPeerId(m)];
             if (conn && conn.open) {
-                conn.send({ type: 'group_invite', groupId: gid, groupName: name, members });
-            } else {
-                // Try to connect first
-                if (peer && !peer.destroyed) {
-                    const c = peer.connect(usernameToPeerId(m), { reliable: true });
-                    c.on('open', () => {
-                        activeConns[usernameToPeerId(m)] = c;
-                        c.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
-                        c.send({ type: 'group_invite', groupId: gid, groupName: name, members });
-                        c.on('data', data => handleIncomingData(c, data));
-                    });
-                }
+                conn.send({ type: 'group_invite', groupId: gid, groupName: name, members, photo: groupPhotoData, admin: currentUser.username });
+            } else if (peer && !peer.destroyed) {
+                const c = peer.connect(usernameToPeerId(m), { reliable: true });
+                c.on('open', () => {
+                    activeConns[usernameToPeerId(m)] = c;
+                    c.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                    c.send({ type: 'group_invite', groupId: gid, groupName: name, members, photo: groupPhotoData, admin: currentUser.username });
+                    c.on('data', data => handleIncomingData(c, data));
+                });
             }
         });
-        addChatTab({ type: 'group', id: gid, name, members });
-        openChat({ type: 'group', id: gid, name, members });
+        addChatTab({ type: 'group', id: gid, name, members, photo: groupPhotoData, admin: currentUser.username });
+        openChat({ type: 'group', id: gid, name, members, photo: groupPhotoData, admin: currentUser.username });
         modal.remove();
         showNotification(`Group "${name}" created!`, 'success');
     });
@@ -1727,7 +1921,6 @@ function bindCallHandlers() {
             if (!peer || peer.destroyed) { showNotification('Not connected', 'error'); return; }
             const overlay = document.getElementById('callOverlay');
             const targetName = selectedChat.name;
-            // Show UI
             overlay.style.display = 'flex';
             document.getElementById('callUserName').textContent = targetName;
             const callAvatarWrap = document.getElementById('callAvatarWrap');
@@ -1737,7 +1930,6 @@ function bindCallHandlers() {
             callDurationSeconds = 0;
             document.getElementById('btnCallMute').classList.remove('active');
             document.getElementById('btnCallMute').style.background = 'rgba(255,255,255,0.08)';
-            // Get mic
             try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
             catch { overlay.style.display = 'none'; showNotification('Mic permission denied', 'error'); return; }
             playSyntheticRing();
@@ -1750,6 +1942,9 @@ function bindCallHandlers() {
                 const audio = document.getElementById('remoteAudio');
                 if (audio) { audio.srcObject = remoteStream; audio.play().catch(()=>{}); }
                 startCallTimer();
+                // Show "Add to call" button once connected
+                const btnAddToCall = document.getElementById('btnAddToCall');
+                if (btnAddToCall) btnAddToCall.style.display = 'inline-flex';
             });
             call.on('close', () => hangUpCall('Call ended'));
             call.on('error', () => { stopSyntheticRing(); overlay.style.display = 'none'; showNotification(`${targetName} unavailable`, 'error'); cleanupLocalStream(); });
@@ -1764,6 +1959,22 @@ function bindCallHandlers() {
     if (btnGroupCall && !btnGroupCall._bound) {
         btnGroupCall._bound = true;
         btnGroupCall.addEventListener('click', startGroupCall);
+    }
+
+    // Group Settings
+    const btnGroupSettings = document.getElementById('btnGroupSettings');
+    if (btnGroupSettings && !btnGroupSettings._bound) {
+        btnGroupSettings._bound = true;
+        btnGroupSettings.addEventListener('click', () => {
+            if (selectedChat && selectedChat.type === 'group') showGroupSettingsModal(selectedChat.id);
+        });
+    }
+
+    // Add to call (during 1:1 call → escalate to group call)
+    const btnAddToCall = document.getElementById('btnAddToCall');
+    if (btnAddToCall && !btnAddToCall._bound) {
+        btnAddToCall._bound = true;
+        btnAddToCall.addEventListener('click', showAddToCallModal);
     }
 
     // Hang up
@@ -1795,6 +2006,339 @@ function bindCallHandlers() {
     if (declineBtn && !declineBtn._boundDecline) {
         declineBtn._boundDecline = true;
         declineBtn.addEventListener('click', () => window._pendingCallDecline && window._pendingCallDecline());
+    }
+}
+
+// ─── ADD PERSON TO ACTIVE 1:1 CALL ───────────────────────────────────────────
+function showAddToCallModal() {
+    let modal = document.getElementById('addToCallModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'addToCallModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(12px);z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    // Get existing contacts to show as chips
+    const dmContacts = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase()))
+        .filter(Boolean)
+        .filter(u => selectedChat && u.toLowerCase() !== selectedChat.name.toLowerCase()); // exclude person already in call
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:380px;max-width:96vw;">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;margin-bottom:0.4rem;color:var(--text-main);letter-spacing:1px;">ADD TO CALL</h3>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1.25rem;">This will add someone else to the current call (like a WhatsApp group call).</p>
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+                ${dmContacts.length > 0 ? `
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">From your chats</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;" id="addCallChips">
+                        ${dmContacts.map(u => `
+                            <button type="button" class="addcall-chip" data-username="${escapeHTML(u)}"
+                                style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.7rem;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius-full);cursor:pointer;font-size:0.8rem;color:var(--text-muted);transition:0.2s;">
+                                ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 20, '0.5rem')} ${escapeHTML(u)}
+                            </button>`).join('')}
+                    </div>
+                </div>` : ''}
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Or type a username</label>
+                    <input id="addCallInput" type="text" placeholder="Username..."
+                        style="width:100%;padding:0.6rem 0.9rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;">
+                </div>
+                <div style="display:flex;gap:0.75rem;margin-top:0.25rem;">
+                    <button id="btnCancelAddCall" class="btn btn-secondary" style="flex:1;justify-content:center;">Cancel</button>
+                    <button id="btnConfirmAddCall" class="btn btn-primary" style="flex:1;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/><path d="M1 1l22 22"/></svg>
+                        Add to Call
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    let chipTarget = null;
+
+    modal.querySelectorAll('.addcall-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            modal.querySelectorAll('.addcall-chip').forEach(c => {
+                c.style.background = 'rgba(255,255,255,0.06)';
+                c.style.borderColor = 'var(--border)';
+                c.style.color = 'var(--text-muted)';
+            });
+            chipTarget = chip.getAttribute('data-username');
+            chip.style.background = 'rgba(139,92,246,0.2)';
+            chip.style.borderColor = 'var(--primary)';
+            chip.style.color = 'white';
+            document.getElementById('addCallInput').value = chipTarget;
+        });
+    });
+
+    document.getElementById('btnCancelAddCall').addEventListener('click', () => modal.remove());
+    document.getElementById('btnConfirmAddCall').addEventListener('click', async () => {
+        const target = (document.getElementById('addCallInput').value.trim()) || chipTarget;
+        if (!target) { showNotification('Enter a username', 'error'); return; }
+        modal.remove();
+        // Add the new person to the call as a group call participant
+        if (!localStream) {
+            try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+            catch { showNotification('Mic permission denied', 'error'); return; }
+        }
+        const targetPeerId = usernameToPeerId(target);
+        const newCall = peer.call(targetPeerId, localStream, { metadata: { groupId: 'adhoc-call', groupName: 'Call' } });
+        groupCallConns[targetPeerId] = newCall;
+        newCall.on('stream', remoteStream => {
+            addGroupCallAudioStream(target, remoteStream);
+            showNotification(`${target} joined the call`, 'success');
+            // Update call overlay to show both participants
+            document.getElementById('callUserName').textContent = `${selectedChat.name}, ${target}`;
+        });
+        newCall.on('close', () => { removeGroupCallAudio(target); delete groupCallConns[targetPeerId]; });
+        showNotification(`Calling ${target}...`, 'info');
+    });
+}
+
+// ─── GROUP SETTINGS MODAL ─────────────────────────────────────────────────────
+function showGroupSettingsModal(gid) {
+    const group = groupChats[gid];
+    if (!group) return;
+    const isGroupAdmin = group.admin && group.admin.toLowerCase() === currentUser.username.toLowerCase();
+
+    let modal = document.getElementById('groupSettingsModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'groupSettingsModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(12px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    const dmContacts = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase()))
+        .filter(Boolean)
+        .filter(u => !group.members.map(m => m.toLowerCase()).includes(u.toLowerCase()));
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;width:420px;max-width:97vw;max-height:92vh;overflow-y:auto;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+                <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;color:var(--text-main);letter-spacing:1px;">GROUP SETTINGS</h3>
+                <button id="btnCloseGroupSettings" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem;line-height:1;">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1.2rem;">
+
+                <!-- Photo + name -->
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="position:relative;flex-shrink:0;${isGroupAdmin ? 'cursor:pointer;' : ''}" id="gsPhotoClick">
+                        <div id="gsPhotoPreview">
+                            ${group.photo
+                                ? `<img src="${group.photo}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`
+                                : `<div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">👥</div>`}
+                        </div>
+                        ${isGroupAdmin ? `
+                        <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-card);">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                        <input type="file" id="gsPhotoFile" accept="image/*" style="display:none;">` : ''}
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Group Name</label>
+                        <input id="gsNameInput" type="text" value="${escapeHTML(group.name)}" maxlength="30" ${!isGroupAdmin ? 'disabled' : ''}
+                            style="width:100%;padding:0.6rem 0.9rem;background:${isGroupAdmin ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'};border:1px solid var(--border);border-radius:var(--radius-md);color:${isGroupAdmin ? 'white' : 'var(--text-muted)'};outline:none;">
+                    </div>
+                </div>
+
+                <!-- Members list -->
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;display:block;">Members (${group.members.length})</label>
+                    <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:160px;overflow-y:auto;padding-right:0.25rem;" id="gsMemberList">
+                        ${group.members.map(m => {
+                            const isMe = m.toLowerCase() === currentUser.username.toLowerCase();
+                            const isAdmin_ = group.admin && group.admin.toLowerCase() === m.toLowerCase();
+                            return `
+                            <div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.6rem;border-radius:var(--radius-md);background:rgba(255,255,255,0.03);">
+                                ${avatarEl({ username: m, avatar: isMe ? currentUser.avatar : getAvatarFor(m) }, 28, '0.6rem')}
+                                <span style="flex:1;font-size:0.88rem;font-weight:600;">${escapeHTML(m)}${isMe ? ' <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">(you)</span>' : ''}</span>
+                                ${isAdmin_ ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:3px;">ADMIN</span>' : ''}
+                                ${isGroupAdmin && !isMe ? `<button class="gs-remove-member" data-member="${escapeHTML(m)}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;transition:0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- Add members (admin only) -->
+                ${isGroupAdmin ? `
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Add Members</label>
+                    ${dmContacts.length > 0 ? `
+                    <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem;" id="gsAddChips">
+                        ${dmContacts.map(u => `
+                            <button type="button" class="gs-add-chip" data-username="${escapeHTML(u)}"
+                                style="display:flex;align-items:center;gap:0.35rem;padding:0.25rem 0.6rem;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius-full);cursor:pointer;font-size:0.78rem;color:var(--text-muted);transition:0.2s;">
+                                ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 18, '0.45rem')} ${escapeHTML(u)}
+                            </button>`).join('')}
+                    </div>` : ''}
+                    <div style="display:flex;gap:0.5rem;">
+                        <input id="gsAddMemberInput" type="text" placeholder="Or type username..."
+                            style="flex:1;padding:0.55rem 0.85rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;font-size:0.85rem;">
+                        <button id="btnGsAddMember" class="btn btn-secondary" style="padding:0.55rem 0.85rem;font-size:0.82rem;">Add</button>
+                    </div>
+                </div>` : ''}
+
+                <div id="gsError" style="color:var(--accent);font-size:0.82rem;display:none;"></div>
+
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                    ${isGroupAdmin ? `
+                    <button id="btnGsSave" class="btn btn-primary" style="flex:1;justify-content:center;min-width:120px;">Save Changes</button>
+                    <button id="btnGsDelete" class="btn btn-secondary" style="padding:0.55rem 1rem;font-size:0.82rem;color:var(--accent);border-color:var(--accent);">Delete Group</button>
+                    ` : `
+                    <button id="btnGsLeave" class="btn btn-secondary" style="flex:1;justify-content:center;color:var(--accent);border-color:var(--accent);">Leave Group</button>
+                    `}
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    let newPhotoData = group.photo || null;
+    let toAdd = new Set();
+
+    document.getElementById('btnCloseGroupSettings').addEventListener('click', () => modal.remove());
+
+    // Photo change (admin only)
+    if (isGroupAdmin) {
+        const gsPhotoClick = document.getElementById('gsPhotoClick');
+        const gsPhotoFile = document.getElementById('gsPhotoFile');
+        if (gsPhotoClick && gsPhotoFile) {
+            gsPhotoClick.addEventListener('click', () => gsPhotoFile.click());
+            gsPhotoFile.addEventListener('change', e => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    newPhotoData = ev.target.result;
+                    document.getElementById('gsPhotoPreview').innerHTML = `<img src="${newPhotoData}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Add chips
+        modal.querySelectorAll('.gs-add-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const u = chip.getAttribute('data-username');
+                if (toAdd.has(u)) {
+                    toAdd.delete(u);
+                    chip.style.background = 'rgba(255,255,255,0.06)';
+                    chip.style.borderColor = 'var(--border)';
+                    chip.style.color = 'var(--text-muted)';
+                } else {
+                    toAdd.add(u);
+                    chip.style.background = 'rgba(139,92,246,0.2)';
+                    chip.style.borderColor = 'var(--primary)';
+                    chip.style.color = 'white';
+                }
+            });
+        });
+
+        // Add member button
+        document.getElementById('btnGsAddMember').addEventListener('click', () => {
+            const inp = document.getElementById('gsAddMemberInput');
+            const u = inp.value.trim();
+            if (u) { toAdd.add(u); inp.value = ''; showNotification(`${u} will be added on save`, 'info'); }
+        });
+
+        // Remove member buttons
+        modal.querySelectorAll('.gs-remove-member').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const m = btn.getAttribute('data-member');
+                group.members = group.members.filter(x => x.toLowerCase() !== m.toLowerCase());
+                // Broadcast removal
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) conn.send({ type: 'group_update', groupId: gid, action: 'remove', members: group.members, name: group.name, photo: newPhotoData });
+                groupChats[gid] = group;
+                localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                btn.closest('div').remove();
+                showNotification(`${m} removed from group`, 'info');
+            });
+        });
+
+        // Save
+        document.getElementById('btnGsSave').addEventListener('click', () => {
+            const newName = document.getElementById('gsNameInput').value.trim();
+            if (!newName) { document.getElementById('gsError').textContent = 'Name cannot be empty.'; document.getElementById('gsError').style.display = 'block'; return; }
+            const newMembers = [...toAdd].filter(u => !group.members.map(m => m.toLowerCase()).includes(u.toLowerCase()));
+            group.name = newName;
+            group.photo = newPhotoData;
+            group.members = [...group.members, ...newMembers];
+            groupChats[gid] = group;
+            localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            // Broadcast update + invite new members
+            group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase()).forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) {
+                    conn.send({ type: 'group_update', groupId: gid, action: 'update', members: group.members, name: newName, photo: newPhotoData, admin: group.admin });
+                }
+            });
+            newMembers.forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) {
+                    conn.send({ type: 'group_invite', groupId: gid, groupName: newName, members: group.members, photo: newPhotoData, admin: group.admin });
+                } else if (peer && !peer.destroyed) {
+                    const c = peer.connect(usernameToPeerId(m), { reliable: true });
+                    c.on('open', () => {
+                        activeConns[usernameToPeerId(m)] = c;
+                        c.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                        c.send({ type: 'group_invite', groupId: gid, groupName: newName, members: group.members, photo: newPhotoData, admin: group.admin });
+                        c.on('data', data => handleIncomingData(c, data));
+                    });
+                }
+            });
+            // Update header if this group is open
+            if (selectedChat && selectedChat.id === gid) {
+                selectedChat.name = newName;
+                selectedChat.photo = newPhotoData;
+                selectedChat.members = group.members;
+                openChat(selectedChat);
+            }
+            refreshChatList();
+            modal.remove();
+            showNotification('Group updated!', 'success');
+        });
+
+        // Delete group
+        document.getElementById('btnGsDelete').addEventListener('click', () => {
+            if (!confirm(`Delete "${group.name}"? Everyone loses this chat.`)) return;
+            // Notify members
+            group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase()).forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) conn.send({ type: 'group_update', groupId: gid, action: 'delete', name: group.name });
+            });
+            delete groupChats[gid];
+            delete chatHistory[gid];
+            localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            selectedChat = null;
+            document.getElementById('chatEmptyState').style.display = 'flex';
+            document.getElementById('chatActiveState').style.display = 'none';
+            refreshChatList();
+            modal.remove();
+            showNotification(`Group "${group.name}" deleted.`, 'info');
+        });
+    } else {
+        // Non-admin: leave group
+        document.getElementById('btnGsLeave').addEventListener('click', () => {
+            group.members = group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase());
+            // Tell admin/others
+            group.members.forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) conn.send({ type: 'group_update', groupId: gid, action: 'update', members: group.members, name: group.name, photo: newPhotoData, admin: group.admin });
+            });
+            delete groupChats[gid];
+            delete chatHistory[gid];
+            localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            selectedChat = null;
+            document.getElementById('chatEmptyState').style.display = 'flex';
+            document.getElementById('chatActiveState').style.display = 'none';
+            refreshChatList();
+            modal.remove();
+            showNotification('You left the group.', 'info');
+        });
     }
 }
 

@@ -769,7 +769,27 @@ let chatHistory = {};
 // Group chats: { groupId: { name, members: [username,...] } }
 let groupChats = JSON.parse(localStorage.getItem('spc_groups') || '{}');
 
-// ─── PEER HELPERS ─────────────────────────────────────────────────────────────
+// ─── ADMIN CONFIG ────────────────────────────────────────────────────────────
+const ADMIN_USERNAME = 'TTG';
+const ADMIN_PASSWORD = 'tttg';
+
+function seedAdminAccount() {
+    let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+    const exists = users.find(u => u.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
+    if (!exists) {
+        users.unshift({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD, avatar: null, bio: 'Admin', isAdmin: true });
+        localStorage.setItem('spc_users', JSON.stringify(users));
+    } else if (!exists.isAdmin) {
+        // Ensure existing TTG account always has admin flag
+        exists.isAdmin = true;
+        localStorage.setItem('spc_users', JSON.stringify(users));
+    }
+}
+seedAdminAccount();
+
+function isAdmin(user) {
+    return user && user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase();
+}
 function usernameToPeerId(u) { return 'spc2-' + u.toLowerCase().replace(/[^a-z0-9]/g, '-'); }
 function peerIdToUsername(id) { return id.replace(/^spc2-/, ''); }
 function dmId(a, b) { return [a,b].map(s=>s.toLowerCase()).sort().join('__'); }
@@ -1053,6 +1073,15 @@ function handleIncomingData(conn, data) {
             showIncomingGroupCallInvite(data, senderName);
             break;
         }
+        case 'kicked': {
+            // We got kicked by admin — show message and disconnect
+            showNotification(`⛔ ${data.message || 'You were disconnected by an admin.'}`, 'error');
+            // Force close this connection
+            try { conn.close(); } catch(e) {}
+            delete activeConns[conn.peer];
+            refreshChatList();
+            break;
+        }
     }
 }
 
@@ -1102,12 +1131,20 @@ function renderMyProfileCard() {
                 <input type="file" id="avatarUploadInput" accept="image/*" style="display:none;">
             </div>
             <div style="flex:1;min-width:0;">
-                <div style="font-weight:700;font-size:0.95rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(currentUser.username)}</div>
+                <div style="display:flex;align-items:center;gap:0.4rem;">
+                    <div style="font-weight:700;font-size:0.95rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(currentUser.username)}</div>
+                    ${isAdmin(currentUser) ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:0.5px;">ADMIN</span>' : ''}
+                </div>
                 <div style="font-size:0.75rem;color:#22c55e;font-weight:600;">● Online</div>
             </div>
-            <button id="btnEditProfile" title="Edit profile" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;border-radius:6px;transition:0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
+            <div style="display:flex;gap:0.25rem;">
+                ${isAdmin(currentUser) ? `<button id="btnAdminPanel" title="Admin Panel" style="background:none;border:none;color:#f59e0b;cursor:pointer;padding:4px;border-radius:6px;transition:0.2s;" onmouseover="this.style.color='#fbbf24'" onmouseout="this.style.color='#f59e0b'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </button>` : ''}
+                <button id="btnEditProfile" title="Edit profile" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;border-radius:6px;transition:0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+            </div>
         </div>
     `;
 
@@ -1150,6 +1187,10 @@ function renderMyProfileCard() {
     // Edit profile modal
     const btnEdit = document.getElementById('btnEditProfile');
     if (btnEdit) btnEdit.addEventListener('click', showEditProfileModal);
+
+    // Admin panel button
+    const btnAdmin = document.getElementById('btnAdminPanel');
+    if (btnAdmin) btnAdmin.addEventListener('click', showAdminPanel);
 }
 
 function showEditProfileModal() {
@@ -1207,32 +1248,200 @@ function showEditProfileModal() {
     document.getElementById('btnSaveProfile').addEventListener('click', () => {
         const newUsername = document.getElementById('editUsername').value.trim();
         const newBio = document.getElementById('editBio').value.trim();
-        if (newUsername.length < 3) { document.getElementById('editProfileError').textContent = 'Username min 3 chars.'; document.getElementById('editProfileError').style.display = 'block'; return; }
-        // Check uniqueness if changed
-        if (newUsername.toLowerCase() !== currentUser.username.toLowerCase()) {
-            let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+        const errEl = document.getElementById('editProfileError');
+
+        if (newUsername.length < 3) {
+            errEl.textContent = 'Username must be at least 3 characters.';
+            errEl.style.display = 'block'; return;
+        }
+
+        // Remember old username BEFORE any changes
+        const oldUsername = currentUser.username;
+
+        // Check uniqueness only if username actually changed
+        let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+        if (newUsername.toLowerCase() !== oldUsername.toLowerCase()) {
             if (users.find(u => u.username.toLowerCase() === newUsername.toLowerCase())) {
-                document.getElementById('editProfileError').textContent = 'Username taken.'; document.getElementById('editProfileError').style.display = 'block'; return;
+                errEl.textContent = 'That username is already taken.';
+                errEl.style.display = 'block'; return;
             }
         }
-        // Update
-        currentUser.avatar = newAvatarData;
-        currentUser.username = newUsername;
-        currentUser.bio = newBio;
-        let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
-        const idx = users.findIndex(u => u.username.toLowerCase() === newUsername.toLowerCase() || u.password === currentUser.password);
-        if (idx >= 0) users[idx] = { ...users[idx], username: newUsername, avatar: newAvatarData, bio: newBio };
+
+        // Find user by OLD username in the array
+        const idx = users.findIndex(u => u.username.toLowerCase() === oldUsername.toLowerCase());
+        if (idx < 0) {
+            errEl.textContent = 'Account not found — try logging out and back in.';
+            errEl.style.display = 'block'; return;
+        }
+
+        // Apply updates
+        users[idx].username = newUsername;
+        users[idx].avatar   = newAvatarData;
+        users[idx].bio      = newBio;
+
         localStorage.setItem('spc_users', JSON.stringify(users));
+
+        // Update currentUser in memory and session
+        currentUser.username = newUsername;
+        currentUser.avatar   = newAvatarData;
+        currentUser.bio      = newBio;
         localStorage.setItem('spc_current_user', JSON.stringify(currentUser));
+
+        // Broadcast profile to open P2P connections
+        Object.values(activeConns).forEach(c => {
+            if (c.open) c.send({ type: 'profile', username: newUsername, avatar: newAvatarData, bio: newBio });
+        });
+
         updateAuthUI();
         renderMyProfileCard();
-        Object.values(activeConns).forEach(c => { if (c.open) c.send({ type: 'profile', username: newUsername, avatar: newAvatarData, bio: newBio }); });
         modal.remove();
         showNotification('Profile saved!', 'success');
     });
 }
 
-// ─── CHAT LIST (LEFT SIDEBAR) ─────────────────────────────────────────────────
+// ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
+function showAdminPanel() {
+    if (!isAdmin(currentUser)) return;
+
+    let modal = document.getElementById('adminPanelModal');
+    if (modal) modal.remove();
+
+    const users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+    // Connected peers (online right now on this page)
+    const onlinePeerIds = Object.keys(activeConns);
+    const onlineUsernames = onlinePeerIds.map(pid => peerIdToUsername(pid));
+
+    modal = document.createElement('div');
+    modal.id = 'adminPanelModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    const userRows = users.map((u, i) => {
+        const isOnline = onlineUsernames.some(o => o.toLowerCase() === u.username.toLowerCase());
+        const isSelf = u.username.toLowerCase() === currentUser.username.toLowerCase();
+        return `
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.65rem 0.75rem;display:flex;align-items:center;gap:0.6rem;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${isOnline ? '#22c55e' : '#64748b'};display:inline-block;flex-shrink:0;"></span>
+                    ${avatarEl({ username: u.username, avatar: u.avatar }, 28, '0.6rem')}
+                    <span style="font-weight:600;font-size:0.88rem;">${escapeHTML(u.username)}</span>
+                    ${u.isAdmin ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:0.55rem;font-weight:800;padding:1px 4px;border-radius:3px;">ADMIN</span>' : ''}
+                    ${isSelf ? '<span style="color:var(--text-muted);font-size:0.72rem;">(you)</span>' : ''}
+                </td>
+                <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:var(--text-muted);font-family:monospace;">${escapeHTML(u.password)}</td>
+                <td style="padding:0.65rem 0.75rem;font-size:0.8rem;color:${isOnline ? '#22c55e' : 'var(--text-muted)'};">${isOnline ? '● Online' : '○ Offline'}</td>
+                <td style="padding:0.65rem 0.75rem;">
+                    ${!isSelf ? `
+                        <div style="display:flex;gap:0.4rem;">
+                            ${isOnline ? `<button class="admin-kick-btn btn btn-secondary" data-username="${escapeHTML(u.username)}" style="padding:0.25rem 0.6rem;font-size:0.75rem;color:#f97316;border-color:#f97316;" title="Disconnect from peer network">Kick</button>` : ''}
+                            <button class="admin-delete-btn btn btn-secondary" data-index="${i}" data-username="${escapeHTML(u.username)}" style="padding:0.25rem 0.6rem;font-size:0.75rem;color:var(--accent);border-color:var(--accent);" title="Delete account">Delete</button>
+                        </div>
+                    ` : '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:680px;max-width:98vw;max-height:90vh;display:flex;flex-direction:column;gap:1.25rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <div style="width:32px;height:32px;background:linear-gradient(135deg,#f59e0b,#ef4444);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;color:var(--text-main);letter-spacing:1px;">ADMIN PANEL</h3>
+                </div>
+                <button id="btnCloseAdmin" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.4rem;line-height:1;padding:4px;">✕</button>
+            </div>
+
+            <!-- Stats row -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">
+                <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius-md);padding:0.85rem;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--primary);">${users.length}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">Total Users</div>
+                </div>
+                <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-md);padding:0.85rem;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:800;color:#22c55e;">${onlineUsernames.length + 1}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">Online Now</div>
+                </div>
+                <div style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2);border-radius:var(--radius-md);padding:0.85rem;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--accent);">${users.length - onlineUsernames.length - 1}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">Offline</div>
+                </div>
+            </div>
+
+            <!-- User table -->
+            <div style="overflow-y:auto;max-height:380px;border:1px solid var(--border);border-radius:var(--radius-md);">
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead style="position:sticky;top:0;background:var(--bg-sidebar);z-index:1;">
+                        <tr>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">User</th>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Password</th>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Status</th>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUserTableBody">${userRows}</tbody>
+                </table>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+                <button id="btnAdminRefresh" class="btn btn-secondary" style="font-size:0.85rem;">↻ Refresh</button>
+                <button id="btnCloseAdmin2" class="btn btn-primary" style="font-size:0.85rem;">Close</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close buttons
+    document.getElementById('btnCloseAdmin').addEventListener('click', () => modal.remove());
+    document.getElementById('btnCloseAdmin2').addEventListener('click', () => modal.remove());
+
+    // Refresh (re-open panel)
+    document.getElementById('btnAdminRefresh').addEventListener('click', () => { modal.remove(); showAdminPanel(); });
+
+    // Kick buttons — close the P2P data connection to that user
+    modal.querySelectorAll('.admin-kick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetUsername = btn.getAttribute('data-username');
+            const targetPeerId = usernameToPeerId(targetUsername);
+            const conn = activeConns[targetPeerId];
+            if (conn) {
+                // Send a kick signal then close
+                try { conn.send({ type: 'kicked', message: 'You have been disconnected by an admin.' }); } catch(e) {}
+                setTimeout(() => { try { conn.close(); } catch(e) {} }, 300);
+                delete activeConns[targetPeerId];
+            }
+            showNotification(`${targetUsername} has been kicked.`, 'info');
+            btn.textContent = 'Kicked';
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            // Refresh stats
+            setTimeout(() => { modal.remove(); showAdminPanel(); }, 800);
+        });
+    });
+
+    // Delete account buttons
+    modal.querySelectorAll('.admin-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetUsername = btn.getAttribute('data-username');
+            if (!confirm(`Delete account "${targetUsername}"? This cannot be undone.`)) return;
+            let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+            users = users.filter(u => u.username.toLowerCase() !== targetUsername.toLowerCase());
+            localStorage.setItem('spc_users', JSON.stringify(users));
+            // Also kick if online
+            const targetPeerId = usernameToPeerId(targetUsername);
+            const conn = activeConns[targetPeerId];
+            if (conn) {
+                try { conn.send({ type: 'kicked', message: 'Your account has been deleted by an admin.' }); } catch(e) {}
+                setTimeout(() => { try { conn.close(); } catch(e) {} delete activeConns[targetPeerId]; }, 300);
+            }
+            showNotification(`Account "${targetUsername}" deleted.`, 'success');
+            modal.remove();
+            showAdminPanel();
+        });
+    });
+}
 function addChatTab(chat) {
     // chat = { type, id, name, members? }
     const list = document.getElementById('activeChatsList');

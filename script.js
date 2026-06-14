@@ -771,19 +771,19 @@ let groupChats = JSON.parse(localStorage.getItem('spc_groups') || '{}');
 
 // ─── ADMIN CONFIG ────────────────────────────────────────────────────────────
 const ADMIN_USERNAME = 'TTG';
-const ADMIN_PASSWORD = 'tttg';
+const ADMIN_PASSWORD = 'ttttg';
 
 function seedAdminAccount() {
     let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
-    const exists = users.find(u => u.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
-    if (!exists) {
+    const idx = users.findIndex(u => u.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
+    if (idx < 0) {
         users.unshift({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD, avatar: null, bio: 'Admin', isAdmin: true });
-        localStorage.setItem('spc_users', JSON.stringify(users));
-    } else if (!exists.isAdmin) {
-        // Ensure existing TTG account always has admin flag
-        exists.isAdmin = true;
-        localStorage.setItem('spc_users', JSON.stringify(users));
+    } else {
+        // Always enforce correct password and admin flag
+        users[idx].password = ADMIN_PASSWORD;
+        users[idx].isAdmin = true;
     }
+    localStorage.setItem('spc_users', JSON.stringify(users));
 }
 seedAdminAccount();
 

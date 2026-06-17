@@ -620,6 +620,18 @@ function initGamePlayer() {
             btnFavorite.classList.toggle('active', isFav);
             btnFavorite.querySelector('svg').setAttribute('fill', isFav ? 'currentColor' : 'none');
             btnFavorite.title = isFav ? 'Remove from Favorites' : 'Add to Favorites';
+            // Override inline styles to reflect active state visually
+            if (isFav) {
+                btnFavorite.style.background = 'white';
+                btnFavorite.style.color = 'var(--accent)';
+                btnFavorite.style.borderColor = 'var(--accent)';
+                btnFavorite.style.boxShadow = '0 4px 15px rgba(244,63,94,0.4)';
+            } else {
+                btnFavorite.style.background = '';
+                btnFavorite.style.color = '';
+                btnFavorite.style.borderColor = '';
+                btnFavorite.style.boxShadow = '';
+            }
         };
 
         updateFavBtn();
@@ -763,8 +775,12 @@ let activeCall = null;     // outgoing/active MediaConnection (1:1)
 let groupCallConns = {};   // { peerId: MediaConnection } for group calls
 let localStream = null;
 
-// In-memory chat storage: { chatId: [{ sender, text, time, avatarData }] }
-let chatHistory = {};
+// Chat storage persisted across refreshes
+let chatHistory = JSON.parse(localStorage.getItem('spc_chat_history') || '{}');
+
+function saveChatHistory() {
+    try { localStorage.setItem('spc_chat_history', JSON.stringify(chatHistory)); } catch(e){}
+}
 
 // Group chats: { groupId: { name, members: [username,...] } }
 let groupChats = JSON.parse(localStorage.getItem('spc_groups') || '{}');
@@ -943,6 +959,7 @@ function initCommunityAuth() {
             if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
             chatHistory = {}; selectedChat = null; currentUser = null;
             localStorage.removeItem('spc_current_user');
+            localStorage.removeItem('spc_chat_history');
             updateAuthUI();
             const cc = document.getElementById('communityChat');
             const ca = document.getElementById('communityAuth');
@@ -976,16 +993,44 @@ function updateAuthUI() {
 function initPeer() {
     if (!currentUser || (peer && !peer.destroyed)) return;
     setPeerStatus('Connecting...');
+    const primaryId = usernameToPeerId(currentUser.username);
     try {
-        peer = new Peer(usernameToPeerId(currentUser.username), { debug: 0 });
+        peer = new Peer(primaryId, { debug: 0 });
     } catch(e) { setPeerStatus('Unavailable'); return; }
 
-    peer.on('open', () => setPeerStatus('● Online'));
-    peer.on('error', err => {
-        if (err.type === 'unavailable-id') setPeerStatus('● Online (multi-tab)');
-        else setPeerStatus('Connection error');
+    peer.on('open', () => {
+        setPeerStatus('● Online');
     });
-    peer.on('disconnected', () => { setPeerStatus('Reconnecting...'); peer.reconnect(); });
+
+    peer.on('error', err => {
+        if (err.type === 'unavailable-id') {
+            // Someone else (or another tab) has this ID — create a unique fallback ID
+            // but we can still make outgoing connections fine
+            setPeerStatus('● Online (multi-tab)');
+            // Recreate peer with unique ID so we can at least receive incoming calls
+            try {
+                const fallbackId = primaryId + '-' + Math.random().toString(36).substr(2, 5);
+                peer = new Peer(fallbackId, { debug: 0 });
+                peer.on('open', () => setPeerStatus('● Online (fallback)'));
+                peer.on('connection', conn => handleIncomingConn(conn));
+                peer.on('call', call => {
+                    const callerName = peerIdToUsername(call.peer);
+                    if (call.metadata && call.metadata.groupId) {
+                        handleIncomingGroupCall(call, callerName);
+                    } else {
+                        showIncomingCallUI(callerName, call);
+                    }
+                });
+                peer.on('error', () => {});
+                peer.on('disconnected', () => { try { peer.reconnect(); } catch(e){} });
+            } catch(e) { setPeerStatus('● Online (limited)'); }
+        } else {
+            setPeerStatus('Connection error');
+            console.warn('PeerJS error:', err.type, err.message);
+        }
+    });
+
+    peer.on('disconnected', () => { setPeerStatus('Reconnecting...'); try { peer.reconnect(); } catch(e){} });
 
     // Incoming data (chat message, group invite, group message)
     peer.on('connection', conn => handleIncomingConn(conn));
@@ -1048,6 +1093,7 @@ function handleIncomingData(conn, data) {
             if (!chatHistory[cid]) chatHistory[cid] = [];
             const msg = { sender: senderName, text: escapeHTML(data.text), time: now(), avatarData: data.avatarData };
             chatHistory[cid].push(msg);
+            saveChatHistory();
             if (selectedChat && selectedChat.id === cid) renderMessages();
             else { flashTab(cid); showNotification(`💬 ${senderName}: ${data.text.substring(0,40)}`, 'info'); }
             refreshChatList();
@@ -1058,6 +1104,7 @@ function handleIncomingData(conn, data) {
             if (!chatHistory[gid]) chatHistory[gid] = [];
             const msg = { sender: senderName, text: escapeHTML(data.text), time: now(), avatarData: data.avatarData };
             chatHistory[gid].push(msg);
+            saveChatHistory();
             if (selectedChat && selectedChat.id === gid) renderMessages();
             else { flashTab(gid); showNotification(`👥 ${senderName} (${data.groupName}): ${data.text.substring(0,35)}`, 'info'); }
             refreshChatList();
@@ -1078,6 +1125,7 @@ function handleIncomingData(conn, data) {
                 delete groupChats[data.groupId];
                 delete chatHistory[data.groupId];
                 localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                saveChatHistory();
                 if (selectedChat && selectedChat.id === data.groupId) {
                     selectedChat = null;
                     document.getElementById('chatEmptyState').style.display = 'flex';
@@ -1145,6 +1193,16 @@ function renderCommunityPanel() {
     } else {
         ca.style.display = 'none'; cc.style.display = 'block';
         renderMyProfileCard();
+        // Restore DM chat tabs from persisted history
+        Object.keys(chatHistory).forEach(id => {
+            if (id.startsWith('grp__')) {
+                const g = groupChats[id];
+                if (g) addChatTab({ type: 'group', id, name: g.name, members: g.members, photo: g.photo, admin: g.admin });
+            } else {
+                const otherUser = id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase());
+                if (otherUser) addChatTab({ type: 'dm', id, name: otherUser });
+            }
+        });
         refreshChatList();
         bindChatHandlers();
         bindCallHandlers();
@@ -1615,6 +1673,7 @@ function appendSystemMsg(text) {
     if (selectedChat) {
         if (!chatHistory[selectedChat.id]) chatHistory[selectedChat.id] = [];
         chatHistory[selectedChat.id].push({ sender: 'System', text, time: now() });
+        saveChatHistory();
         renderMessages();
     }
 }
@@ -1634,21 +1693,43 @@ function bindChatHandlers() {
             const statusEl = document.getElementById('peerConnectStatus');
             statusEl.textContent = 'Connecting...';
             const targetPeerId = usernameToPeerId(target);
-            if (!peer || peer.destroyed) { statusEl.textContent = 'Not online. Refresh page.'; return; }
+
+            // Always open/create the DM tab even if peer is unavailable
+            const cid = dmId(currentUser.username, target);
+            if (!chatHistory[cid]) chatHistory[cid] = [];
+            addChatTab({ type: 'dm', id: cid, name: target });
+            openChat({ type: 'dm', id: cid, name: target });
+
+            if (!peer || typeof peer.connect !== 'function') { statusEl.textContent = 'Not connected — refresh page.'; return; }
+
+            // Check if already connected
+            if (activeConns[targetPeerId] && activeConns[targetPeerId].open) {
+                statusEl.textContent = `Already connected to ${target}`;
+                setTimeout(() => statusEl.textContent = '', 3000);
+                return;
+            }
+
             const conn = peer.connect(targetPeerId, { reliable: true, metadata: { username: currentUser.username } });
+            let connectTimeout = setTimeout(() => {
+                statusEl.textContent = `${target} appears offline — messages saved locally`;
+                setTimeout(() => statusEl.textContent = '', 5000);
+            }, 8000);
+
             conn.on('open', () => {
+                clearTimeout(connectTimeout);
                 activeConns[targetPeerId] = conn;
                 conn.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
-                const cid = dmId(currentUser.username, target);
-                if (!chatHistory[cid]) chatHistory[cid] = [];
-                addChatTab({ type: 'dm', id: cid, name: target });
-                openChat({ type: 'dm', id: cid, name: target });
                 statusEl.textContent = `Connected to ${target}`;
+                refreshChatList();
                 setTimeout(() => statusEl.textContent = '', 3000);
             });
             conn.on('data', data => handleIncomingData(conn, data));
             conn.on('close', () => { delete activeConns[targetPeerId]; refreshChatList(); appendSystemMsg(`${target} disconnected.`); });
-            conn.on('error', () => { statusEl.textContent = `${target} is not online`; setTimeout(() => statusEl.textContent = '', 4000); });
+            conn.on('error', () => {
+                clearTimeout(connectTimeout);
+                statusEl.textContent = `${target} is not online`;
+                setTimeout(() => statusEl.textContent = '', 4000);
+            });
         };
         btnStart.addEventListener('click', doStart);
         document.getElementById('peerUsernameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doStart(); } });
@@ -1716,6 +1797,7 @@ function bindChatHandlers() {
             const msg = { sender: currentUser.username, text: escapeHTML(text), time: now(), avatarData: currentUser.avatar };
             if (!chatHistory[selectedChat.id]) chatHistory[selectedChat.id] = [];
             chatHistory[selectedChat.id].push(msg);
+            saveChatHistory();
             renderMessages();
             refreshChatList();
             input.value = '';
@@ -1918,7 +2000,7 @@ function bindCallHandlers() {
         btnCall._bound = true;
         btnCall.addEventListener('click', async () => {
             if (!selectedChat || selectedChat.type !== 'dm') return;
-            if (!peer || peer.destroyed) { showNotification('Not connected', 'error'); return; }
+            if (!peer || typeof peer.call !== 'function') { showNotification('Not connected — try refreshing the page', 'error'); return; }
             const overlay = document.getElementById('callOverlay');
             const targetName = selectedChat.name;
             overlay.style.display = 'flex';
@@ -2313,6 +2395,7 @@ function showGroupSettingsModal(gid) {
             delete groupChats[gid];
             delete chatHistory[gid];
             localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            saveChatHistory();
             selectedChat = null;
             document.getElementById('chatEmptyState').style.display = 'flex';
             document.getElementById('chatActiveState').style.display = 'none';
@@ -2332,6 +2415,7 @@ function showGroupSettingsModal(gid) {
             delete groupChats[gid];
             delete chatHistory[gid];
             localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            saveChatHistory();
             selectedChat = null;
             document.getElementById('chatEmptyState').style.display = 'flex';
             document.getElementById('chatActiveState').style.display = 'none';

@@ -1075,9 +1075,7 @@ function handleIncomingConn(conn) {
         const uname = peerIdToUsername(conn.peer);
         delete activeConns[conn.peer];
         refreshChatList();
-        if (selectedChat && selectedChat.id === dmId(currentUser.username, uname)) {
-            appendSystemMsg('User disconnected.');
-        }
+        showNotification(`${uname} disconnected`, 'info');
     });
 }
 
@@ -1724,7 +1722,7 @@ function bindChatHandlers() {
                 setTimeout(() => statusEl.textContent = '', 3000);
             });
             conn.on('data', data => handleIncomingData(conn, data));
-            conn.on('close', () => { delete activeConns[targetPeerId]; refreshChatList(); appendSystemMsg(`${target} disconnected.`); });
+            conn.on('close', () => { delete activeConns[targetPeerId]; refreshChatList(); showNotification(`${target} disconnected`, 'info'); });
             conn.on('error', () => {
                 clearTimeout(connectTimeout);
                 statusEl.textContent = `${target} is not online`;
@@ -1803,9 +1801,29 @@ function bindChatHandlers() {
             input.value = '';
             // Send over P2P
             if (selectedChat.type === 'dm') {
-                const conn = activeConns[usernameToPeerId(selectedChat.name)];
-                if (conn && conn.open) conn.send({ type: 'message', text, avatarData: currentUser.avatar });
-                else appendSystemMsg('⚠ Not connected — message saved locally only.');
+                const targetPeerId = usernameToPeerId(selectedChat.name);
+                const conn = activeConns[targetPeerId];
+                if (conn && conn.open) {
+                    conn.send({ type: 'message', text, avatarData: currentUser.avatar });
+                } else {
+                    // Try to reconnect silently then send
+                    if (peer && typeof peer.connect === 'function') {
+                        const retryConn = peer.connect(targetPeerId, { reliable: true, metadata: { username: currentUser.username } });
+                        retryConn.on('open', () => {
+                            activeConns[targetPeerId] = retryConn;
+                            retryConn.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                            retryConn.send({ type: 'message', text, avatarData: currentUser.avatar });
+                            retryConn.on('data', data => handleIncomingData(retryConn, data));
+                            retryConn.on('close', () => { delete activeConns[targetPeerId]; refreshChatList(); });
+                            refreshChatList();
+                        });
+                        retryConn.on('error', () => {
+                            showNotification(`${selectedChat.name} is offline — message saved locally`, 'info');
+                        });
+                    } else {
+                        showNotification('Message saved locally — not connected', 'info');
+                    }
+                }
             } else {
                 // Group: broadcast to all members who are connected
                 const group = groupChats[selectedChat.id];
@@ -2000,6 +2018,9 @@ function bindCallHandlers() {
         btnCall._bound = true;
         btnCall.addEventListener('click', async () => {
             if (!selectedChat || selectedChat.type !== 'dm') return;
+            if (selectedChat.name.toLowerCase() === currentUser.username.toLowerCase()) {
+                showNotification("You can't call yourself!", 'error'); return;
+            }
             if (!peer || typeof peer.call !== 'function') { showNotification('Not connected — try refreshing the page', 'error'); return; }
             const overlay = document.getElementById('callOverlay');
             const targetName = selectedChat.name;
@@ -2502,10 +2523,13 @@ function hangUpCall(logStatus) {
     if (overlay) overlay.style.display = 'none';
     if (groupCallOverlay) groupCallOverlay.style.display = 'none';
     playDisconnectBeep();
-    if (selectedChat) {
+    if (selectedChat && callDurationSeconds > 1) {
         const m = String(Math.floor(callDurationSeconds/60)).padStart(2,'0');
         const s = String(callDurationSeconds%60).padStart(2,'0');
         appendSystemMsg(`📞 Voice Call — ${logStatus} (${m}:${s})`);
+    } else if (selectedChat && callDurationSeconds <= 1) {
+        // Call failed or was too short — just show a toast, not a chat log
+        showNotification(logStatus || 'Call ended', 'info');
     }
 }
 

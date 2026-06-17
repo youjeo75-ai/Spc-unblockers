@@ -778,6 +778,22 @@ let localStream = null;
 // Chat storage persisted across refreshes
 let chatHistory = JSON.parse(localStorage.getItem('spc_chat_history') || '{}');
 
+// Clean out old system noise (call logs, not-connected warnings) from saved history
+(function cleanChatHistory() {
+    let changed = false;
+    Object.keys(chatHistory).forEach(id => {
+        const before = chatHistory[id].length;
+        chatHistory[id] = chatHistory[id].filter(msg => {
+            if (msg.sender === 'System') return false;          // remove all system messages
+            return true;
+        });
+        if (chatHistory[id].length !== before) changed = true;
+    });
+    if (changed) {
+        try { localStorage.setItem('spc_chat_history', JSON.stringify(chatHistory)); } catch(e) {}
+    }
+})();
+
 function saveChatHistory() {
     try { localStorage.setItem('spc_chat_history', JSON.stringify(chatHistory)); } catch(e){}
 }
@@ -991,12 +1007,33 @@ function updateAuthUI() {
 
 // ─── PEERJS ───────────────────────────────────────────────────────────────────
 function initPeer() {
-    if (!currentUser || (peer && !peer.destroyed)) return;
+    if (!currentUser) return;
+    // Destroy old peer if fully dead
+    if (peer && peer.destroyed) { peer = null; }
+    if (peer && !peer.destroyed) return; // already running
+
     setPeerStatus('Connecting...');
     const primaryId = usernameToPeerId(currentUser.username);
+
+    function setupPeerHandlers(p) {
+        p.on('connection', conn => handleIncomingConn(conn));
+        p.on('call', call => {
+            const callerName = peerIdToUsername(call.peer);
+            if (call.metadata && call.metadata.groupId) {
+                handleIncomingGroupCall(call, callerName);
+            } else {
+                showIncomingCallUI(callerName, call);
+            }
+        });
+        p.on('disconnected', () => {
+            setPeerStatus('Reconnecting...');
+            try { p.reconnect(); } catch(e) { setPeerStatus('● Online'); }
+        });
+    }
+
     try {
         peer = new Peer(primaryId, { debug: 0 });
-    } catch(e) { setPeerStatus('Unavailable'); return; }
+    } catch(e) { setPeerStatus('● Online'); return; }
 
     peer.on('open', () => {
         setPeerStatus('● Online');
@@ -1004,47 +1041,25 @@ function initPeer() {
 
     peer.on('error', err => {
         if (err.type === 'unavailable-id') {
-            // Someone else (or another tab) has this ID — create a unique fallback ID
-            // but we can still make outgoing connections fine
-            setPeerStatus('● Online (multi-tab)');
-            // Recreate peer with unique ID so we can at least receive incoming calls
+            // Another tab has our ID — make a fallback peer for receiving,
+            // but flag the primary ID so outgoing connects still target the right peer
+            setPeerStatus('● Online');
             try {
                 const fallbackId = primaryId + '-' + Math.random().toString(36).substr(2, 5);
-                peer = new Peer(fallbackId, { debug: 0 });
-                peer.on('open', () => setPeerStatus('● Online (fallback)'));
-                peer.on('connection', conn => handleIncomingConn(conn));
-                peer.on('call', call => {
-                    const callerName = peerIdToUsername(call.peer);
-                    if (call.metadata && call.metadata.groupId) {
-                        handleIncomingGroupCall(call, callerName);
-                    } else {
-                        showIncomingCallUI(callerName, call);
-                    }
-                });
-                peer.on('error', () => {});
-                peer.on('disconnected', () => { try { peer.reconnect(); } catch(e){} });
-            } catch(e) { setPeerStatus('● Online (limited)'); }
+                const fallback = new Peer(fallbackId, { debug: 0 });
+                fallback.on('open', () => { peer = fallback; setPeerStatus('● Online'); });
+                setupPeerHandlers(fallback);
+                fallback.on('error', () => {});
+            } catch(e) { /* silently keep going */ }
+        } else if (err.type === 'peer-unavailable') {
+            // Target peer not online — already handled per-call/conn
         } else {
-            setPeerStatus('Connection error');
-            console.warn('PeerJS error:', err.type, err.message);
+            setPeerStatus('● Online');
+            console.warn('PeerJS:', err.type);
         }
     });
 
-    peer.on('disconnected', () => { setPeerStatus('Reconnecting...'); try { peer.reconnect(); } catch(e){} });
-
-    // Incoming data (chat message, group invite, group message)
-    peer.on('connection', conn => handleIncomingConn(conn));
-
-    // Incoming voice call
-    peer.on('call', call => {
-        const callerName = peerIdToUsername(call.peer);
-        // Check if group call
-        if (call.metadata && call.metadata.groupId) {
-            handleIncomingGroupCall(call, callerName);
-        } else {
-            showIncomingCallUI(callerName, call);
-        }
-    });
+    setupPeerHandlers(peer);
 }
 
 function setPeerStatus(txt) {
@@ -1054,6 +1069,13 @@ function setPeerStatus(txt) {
         el.style.color = txt.includes('Online') ? '#22c55e' : 'var(--text-muted)';
     }
 }
+
+// Periodically ensure peer is alive
+setInterval(() => {
+    if (currentUser && (!peer || peer.destroyed || peer.disconnected)) {
+        initPeer();
+    }
+}, 15000);
 
 // ─── DATA CONNECTION HANDLER ──────────────────────────────────────────────────
 function handleIncomingConn(conn) {

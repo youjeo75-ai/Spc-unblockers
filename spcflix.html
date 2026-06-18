@@ -427,6 +427,174 @@
 <script>
 const CATALOGUE = [
     // ── MOVIES ────────────────────────────────────────────────────────────────
+        {
+        type:'movie', title:'The Shawshank Redemption', year:1994, rating:'9.3',
+        genre:'Drama',
+        poster:'https://image.tmdb.org/t/p/w500/lyQBXzOQSuE59IsHyhrp0qIiPAz.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
+        desc:'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.',
+        url:'https://streamimdb.ru/embed/movie/tt0111161'
+    },
+    {
+        type:'movie', title:'The Godfather', year:1972, rating:'9.2',
+        genre:'Crime / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsLe1rDtrmkiz.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/tmU7GeKVybMWFPJ1hEsKc1GmqJr.jpg',
+        desc:'The aging patriarch of an organized crime dynasty transfers control to his reluctant son.',
+        url:'https://streamimdb.ru/embed/movie/tt0068646'
+    },
+    {
+        type:'movie', title:'The Matrix', year:1999, rating:'8.7',
+        genre:'Sci-Fi / Action',
+        poster:'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg',
+        desc:'A computer hacker learns the world he lives in is a simulated reality controlled by machines.',
+        url:'https://streamimdb.ru/embed/movie/tt0133093'
+    },
+    {
+        type:'movie', title:'Goodfellas', year:1990, rating:'8.7',
+        genre:'Crime / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/sw7mordbZxgITU877yTpZCud90M.jpg',
+        desc:'The story of Henry Hill and his life in the mob, covering his career from childhood through adulthood.',
+        url:'https://streamimdb.ru/embed/movie/tt0099685'
+    },
+    {
+        type:'movie', title:'The Silence of the Lambs', year:1991, rating:'8.6',
+        genre:'Thriller / Horror',
+        poster:'https://image.tmdb.org/t/p/w500/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/mfwq2nMBmAL7TnMFJMJl6qRCIe8.jpg',
+        desc:'A young FBI cadet must receive the help of an incarcerated and manipulative cannibal killer to catch another serial killer.',
+        url:'https://streamimdb.ru/embed/movie/tt0102926'
+    },
+    {
+        type:'movie', title:'Forrest Gump', year:1994, rating:'8.8',
+        genre:'Drama / Romance',
+        poster:'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/qdIMHd4sEooeR6xqnFQsLGCzHb5.jpg',
+        desc:'The presidencies of Kennedy and Johnson unfold through the perspective of an Alabama man with an IQ of 75.',
+        url:'https://streamimdb.ru/embed/movie/tt0109830'
+    },
+    {
+        type:'movie', title:'Avengers: Endgame', year:2019, rating:'8.4',
+        genre:'Action / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg',
+        desc:'After the devastating events of Infinity War, the Avengers assemble once more to undo Thanos\'s actions.',
+        url:'https://streamimdb.ru/embed/movie/tt4154796'
+    },
+    {
+        type:'movie', title:'The Lion King', year:1994, rating:'8.5',
+        genre:'Animation / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/sKCr78MXSuknuwCuG6bdk2UCeGm.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/wXsQvli6tWqja51pYxXNG1LFIGV.jpg',
+        desc:'Lion prince Simba flees after the murder of his father and must return to reclaim his homeland.',
+        url:'https://streamimdb.ru/embed/movie/tt0110357'
+    },
+    {
+        type:'movie', title:'Gladiator', year:2000, rating:'8.5',
+        genre:'Action / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/6WBIzCgmDCYrqh64yDREGeDk9d3.jpg',
+        desc:'A Roman general betrayed by the emperor\'s corrupt son seeks revenge as a gladiator.',
+        url:'https://streamimdb.ru/embed/movie/tt0172495'
+    },
+    {
+        type:'movie', title:'The Departed', year:2006, rating:'8.5',
+        genre:'Crime / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/nT97ifVT2J1yMQmeq20Qblg61T.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/8NTt2XB8BPJM15s2mGj9RmKRmBh.jpg',
+        desc:'An undercover cop and a mob mole try to identify each other while infiltrating the Massachusetts State Police.',
+        url:'https://streamimdb.ru/embed/movie/tt0407887'
+    },
+    {
+        type:'movie', title:'Parasite', year:2019, rating:'8.5',
+        genre:'Thriller / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg',
+        desc:'Greed and class discrimination threaten the symbiotic relationship between two families.',
+        url:'https://streamimdb.ru/embed/movie/tt6751668'
+    },
+    {
+        type:'movie', title:'Joker', year:2019, rating:'8.4',
+        genre:'Crime / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/n6bUvigpRFqSwmPp1ZIz5LKMA7l.jpg',
+        desc:'A failed comedian begins a slow descent into madness, transforming into the iconic villain Joker.',
+        url:'https://streamimdb.ru/embed/movie/tt7286456'
+    },
+    {
+        type:'movie', title:'No Country for Old Men', year:2007, rating:'8.2',
+        genre:'Crime / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/6d3vRCgBXOBDPP3Z6gOFcx6pNDT.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/sy9OtFJMScvMrsDEYDHnHFQsPJH.jpg',
+        desc:'Violence and mayhem ensue after a hunter stumbles upon a drug deal gone wrong in the Texas desert.',
+        url:'https://streamimdb.ru/embed/movie/tt0477348'
+    },
+    {
+        type:'movie', title:'Whiplash', year:2014, rating:'8.5',
+        genre:'Drama / Music',
+        poster:'https://image.tmdb.org/t/p/w500/7fn624j5lj3xTme2SgiLCeuedmO.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/fRGxZuo7jJUWQsVg9PREb98Aclp.jpg',
+        desc:'A promising young drummer enrolls at a cut-throat music conservatory where his ambitious teacher pushes him to his limits.',
+        url:'https://streamimdb.ru/embed/movie/tt2582802'
+    },
+    {
+        type:'movie', title:'The Prestige', year:2006, rating:'8.5',
+        genre:'Drama / Mystery',
+        poster:'https://image.tmdb.org/t/p/w500/tRNlZbgNCNOpLpbPEz5L8G8A0MV.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/zGN7kGmExvONhkAEOhSFwkMOZVn.jpg',
+        desc:'Two stage magicians engage in a fierce rivalry that leads to obsession, jealousy and ultimately tragedy.',
+        url:'https://streamimdb.ru/embed/movie/tt0482571'
+    },
+    {
+        type:'movie', title:'Django Unchained', year:2012, rating:'8.4',
+        genre:'Western / Action',
+        poster:'https://image.tmdb.org/t/p/w500/7oWY8VDWW7thTzWh3OKYRkWcKhz.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/2oZklIzUbvZXXzIFzv7Hi68d6xf.jpg',
+        desc:'A freed slave teams up with a bounty hunter to rescue his wife from a cruel plantation owner.',
+        url:'https://streamimdb.ru/embed/movie/tt1853728'
+    },
+    {
+        type:'movie', title:'Blade Runner 2049', year:2017, rating:'8.0',
+        genre:'Sci-Fi / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/ilRyazdMJwN2WLWT3BRBU9YMoKB.jpg',
+        desc:'A new blade runner unearths a long-buried secret that has the potential to plunge society into chaos.',
+        url:'https://streamimdb.ru/embed/movie/tt1856101'
+    },
+    {
+        type:'movie', title:'Mad Max: Fury Road', year:2015, rating:'8.1',
+        genre:'Action / Sci-Fi',
+        poster:'https://image.tmdb.org/t/p/w500/8tZYtuWezp8JbcsvHYO0O46tFbo.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/phszHPFyFQkKMTWkFNyJqCznCi5.jpg',
+        desc:'In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.',
+        url:'https://streamimdb.ru/embed/movie/tt1392190'
+    },
+    {
+        type:'movie', title:'Schindler\'s List', year:1993, rating:'9.0',
+        genre:'Biography / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/loRmRzQXZeqG78TqZuyvSlEQfZb.jpg',
+        desc:'In German-occupied Poland, Oskar Schindler saves more than a thousand Jewish refugees by employing them in his factory.',
+        url:'https://streamimdb.ru/embed/movie/tt0108052'
+    },
+    {
+        type:'movie', title:'The Wolf of Wall Street', year:2013, rating:'8.2',
+        genre:'Biography / Crime',
+        poster:'https://image.tmdb.org/t/p/w500/34m2tygAYBGqA9MXKhRDtzYd4Nd.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/rr7E0NoGT3vSaXFOv8pByOAo7LN.jpg',
+        desc:'Based on the true story of Jordan Belfort, a New York stockbroker who ran a massive fraud empire.',
+        url:'https://streamimdb.ru/embed/movie/tt0993846'
+    },
+    {
+        type:'movie', title:'Gran Torino', year:2008, rating:'8.1',
+        genre:'Drama',
+        poster:'https://image.tmdb.org/t/p/w500/uCDFhQs8PBlelh43v4KJLVR2o5h.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/3NTAbAiao4JLzFQw6YxP1YZppM8.jpg',
+        desc:'A grumpy, prejudiced veteran forms an unlikely bond with his Hmong neighbor to protect him from a local gang.',
+        url:'https://streamimdb.ru/embed/movie/tt1205489'
+    },
     {
         type:'movie', title:'Inception', year:2010, rating:'8.8',
         genre:'Sci-Fi / Thriller',
@@ -547,8 +715,278 @@ const CATALOGUE = [
         seasons:4, eps:[3,3,3,4],
         urlTemplate:'https://streamimdb.ru/embed/tv/tt1475582/{season}/{episode}'
     },
+     {
+        type:'series', title:'The Last of Us', year:2023, rating:'8.8',
+        genre:'Drama / Horror',
+        poster:'https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/oOxZIsA6BkFJ6SoEMZeGMbWMPqP.jpg',
+        desc:'Twenty years after a fungal infection destroys civilization, a smuggler must escort a girl who may be humanity\'s last hope.',
+        seasons:2, eps:[9,7],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt3581920/{season}/{episode}'
+    },
+    {
+        type:'series', title:'The Boys', year:2019, rating:'8.7',
+        genre:'Action / Comedy',
+        poster:'https://image.tmdb.org/t/p/w500/stTEycfG9928HYGEISBFaG1ngjM.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/mGVrXeIjyYzKm3wkCpYqeh9uHSl.jpg',
+        desc:'A group of vigilantes fights back against corrupt superheroes who abuse their powers.',
+        seasons:4, eps:[8,8,8,8],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt1190634/{season}/{episode}'
+    },
+    {
+        type:'series', title:'House of the Dragon', year:2022, rating:'8.4',
+        genre:'Fantasy / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/z2yahl2uefxDCl0nogcRBstwруку.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/etj8E2o0Bud0HkONVQPjyCkIvpv.jpg',
+        desc:'The prequel to Game of Thrones follows the Targaryen civil war known as the Dance of the Dragons.',
+        seasons:2, eps:[10,8],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt11198330/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Chernobyl', year:2019, rating:'9.4',
+        genre:'Drama / History',
+        poster:'https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/mnCkLTTSt7PAyBuFdv2F6VVH0vY.jpg',
+        desc:'The true story of the 1986 nuclear disaster and the men and women who heroically sacrificed to contain it.',
+        seasons:1, eps:[5],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt7366338/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Black Mirror', year:2011, rating:'8.7',
+        genre:'Sci-Fi / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/7PRddO7z7mcPi21nZTCMGShAyy1.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/xMMnAGCJi9a4T1FwaMJAGVELtYm.jpg',
+        desc:'An anthology series exploring the dark side of technology and human nature in the near future.',
+        seasons:6, eps:[3,4,6,6,3,6],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt2085059/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Dark', year:2017, rating:'8.8',
+        genre:'Sci-Fi / Mystery',
+        poster:'https://image.tmdb.org/t/p/w500/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/tLBVsDOTCMTqhjPhCpCCGGDhNSJ.jpg',
+        desc:'A missing child sets off a chain of events in a German town where four interconnected families uncover a time travel conspiracy.',
+        seasons:3, eps:[10,8,8],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt5753856/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Better Call Saul', year:2015, rating:'9.0',
+        genre:'Crime / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/fC2HDm5t0kHl7mTm7jxMR31b7by.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/rkB4LyZHo1NHkasxv0EN7VKEtOJ.jpg',
+        desc:'The trials and tribulations of criminal lawyer Jimmy McGill in the years before he becomes Saul Goodman.',
+        seasons:6, eps:[10,10,10,10,10,13],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt3032476/{season}/{episode}'
+    },
+    {
+        type:'series', title:'The Wire', year:2002, rating:'9.3',
+        genre:'Crime / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/4lbclFySvugI51fwsyxBTOm4DqK.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/7BOf3XOPBbOdNkfzaLTBKIDc0p.jpg',
+        desc:'The Baltimore drug scene is seen through the eyes of both drug dealers and law enforcement.',
+        seasons:5, eps:[13,13,12,13,10],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt0306414/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Succession', year:2018, rating:'8.9',
+        genre:'Drama / Comedy',
+        poster:'https://image.tmdb.org/t/p/w500/7HW47XbkNQ5fiwQFYGWdw9gs144.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/bsNm9z2TJfe1nzXQPNe3gNRFBJw.jpg',
+        desc:'The Roy family, owners of a global media empire, battle for the future of the company while fighting each other.',
+        seasons:4, eps:[10,10,9,10],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt7660850/{season}/{episode}'
+    },
+    {
+        type:'series', title:'House of Cards', year:2013, rating:'8.7',
+        genre:'Drama / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/hKWxkQxFcBbW8Qfh9PjkWuvfFno.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/4qnEeVPM8Yn5dIVC4k5yAdFJGQh.jpg',
+        desc:'A Congressman works with his wife to exact revenge on those who betrayed him.',
+        seasons:6, eps:[13,13,13,13,13,8],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt1856010/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Squid Game', year:2021, rating:'8.0',
+        genre:'Thriller / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/qw3J9cNeLioOLoR68WX7z79aCdK.jpg',
+        desc:'Hundreds of cash-strapped players accept an invitation to compete in children\'s games for a prize but at deadly risk.',
+        seasons:2, eps:[9,7],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt10919420/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Severance', year:2022, rating:'8.7',
+        genre:'Sci-Fi / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/lMoEYDXqwYnMFkLSm6P5qENMvpV.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/9mKOclXrFSKqJvGMRSRh5cLx7Je.jpg',
+        desc:'Employees who agree to a surgical procedure that splits their memories between work and personal life discover a dark conspiracy.',
+        seasons:2, eps:[9,10],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt11280740/{season}/{episode}'
+    },
+    {
+        type:'series', title:'The Mandalorian', year:2019, rating:'8.7',
+        genre:'Sci-Fi / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/sWgBv7LV2PRoQgkxwlibdGXKz1S.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/o0GCu8LqoMbVdLnbHmAfgVjwGGQ.jpg',
+        desc:'A lone bounty hunter and a Force-sensitive child are pursued across the outer reaches of the galaxy.',
+        seasons:3, eps:[8,8,8],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt8111088/{season}/{episode}'
+    },
+    {
+        type:'series', title:'Ozark', year:2017, rating:'8.4',
+        genre:'Crime / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/pCGyPVrI9Fzc5LVkDNXkqsEuTXj.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/mYuQEQEJMHvRvfDVXUcvS98cQfH.jpg',
+        desc:'A financial advisor drags his family from Chicago to the Missouri Ozarks, where he must launder money to appease a drug boss.',
+        seasons:4, eps:[10,10,10,14],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt5071412/{season}/{episode}'
+    },
+    {
+        type:'series', title:'True Detective', year:2014, rating:'9.0',
+        genre:'Crime / Mystery',
+        poster:'https://image.tmdb.org/t/p/w500/f8TfSBjSdA8p0qgMEJUOxZCbF1w.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/2f7nGERSMjnRJRhLrOZM0bKpQfM.jpg',
+        desc:'Two detectives with opposing world-views are brought together to investigate a series of murders in Louisiana.',
+        seasons:4, eps:[8,8,8,6],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt2356777/{season}/{episode}'
+    },
 
     // ── ANIME ─────────────────────────────────────────────────────────────────
+      {
+        type:'anime', title:'Fullmetal Alchemist: Brotherhood', year:2009, rating:'9.1',
+        genre:'Action / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/z5BO7PWqrFWNFHEfqIUhEkGpXxl.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/aSiE2Xk6GqRO4hBTZBDGxv4BsUO.jpg',
+        desc:'Two brothers search for the Philosopher\'s Stone to restore their bodies after a forbidden alchemical ritual gone wrong.',
+        seasons:1, eps:[64],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt1355642/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Death Note', year:2006, rating:'9.0',
+        genre:'Thriller / Supernatural',
+        poster:'https://image.tmdb.org/t/p/w500/g7PBGUEHMuKxEf6eVZzHm4Dhr3E.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/436NpHGRuPgQmGa4VnQ5Q0Pf8LI.jpg',
+        desc:'A student discovers a supernatural notebook that allows him to kill anyone whose name he writes in it.',
+        seasons:1, eps:[37],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt0877057/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Hunter x Hunter', year:2011, rating:'9.0',
+        genre:'Action / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/oqMcPHlRqSMDOJBNmLDSANcqhSO.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/mgnfTnMEsMhQc2gVOmnnbsEPpVP.jpg',
+        desc:'A young boy sets out on a journey to become a Hunter and find his father, who was one of the greatest Hunters alive.',
+        seasons:6, eps:[26,26,26,26,13,12],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt2098220/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Mob Psycho 100', year:2016, rating:'8.9',
+        genre:'Action / Comedy',
+        poster:'https://image.tmdb.org/t/p/w500/mPJkCHsXGLDEPBpj3sWMNqmxhAl.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/oqDkdBdmUCiuFG8MqPMTY9dBGNg.jpg',
+        desc:'A young esper tries to live a normal life while suppressing his incredible psychic powers.',
+        seasons:3, eps:[12,13,12],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt5786474/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Vinland Saga', year:2019, rating:'8.8',
+        genre:'Action / History',
+        poster:'https://image.tmdb.org/t/p/w500/3PkMFAHXBo9xnuBKR6EaEFzrCLv.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/pOudaCTSMJTJTqFGFivgGVxUFmH.jpg',
+        desc:'A young Viking warrior seeks revenge against the man who murdered his father while finding his place in the world.',
+        seasons:2, eps:[24,24],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt7431902/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Tokyo Revengers', year:2021, rating:'7.9',
+        genre:'Action / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/vBU2OuTGFQjMEAbD9AMHhBBlHrM.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/1rO9FnObXwqHvlMHKyMl45AKUKU.jpg',
+        desc:'A middle-schooler travels back in time to prevent his childhood friends from being killed by a gang.',
+        seasons:3, eps:[24,13,13],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt13005486/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Spy x Family', year:2022, rating:'8.5',
+        genre:'Action / Comedy',
+        poster:'https://image.tmdb.org/t/p/w500/nso3nqNFnC1mCMWZGW1Zy4TomV1.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/aFCmDWxqV1bJFBVKFWnuCLGKi35.jpg',
+        desc:'A spy must build a fake family to complete a mission, not knowing his wife is an assassin and his daughter a telepath.',
+        seasons:2, eps:[25,13],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt13706018/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Sword Art Online', year:2012, rating:'7.7',
+        genre:'Action / Sci-Fi',
+        poster:'https://image.tmdb.org/t/p/w500/pmvoaqMqaHKAkGiEHaRUGkMeOou.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/8TFCXoTH9Kp7EVzeGGRFbOBUFOO.jpg',
+        desc:'Thousands of players are trapped inside a virtual reality MMORPG where dying in the game means dying in real life.',
+        seasons:4, eps:[25,24,24,23],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt2345643/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'My Hero Academia', year:2016, rating:'8.4',
+        genre:'Action / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/gHBe4YqGKvSTRRVeHaqcwQRijKA.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/vuxLmcLZ6VkCsKSHYFJxV1wIv2.jpg',
+        desc:'In a world where most people have superpowers, a boy born without any dreams of becoming the greatest hero.',
+        seasons:7, eps:[13,25,25,25,26,25,21],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt5626028/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Black Clover', year:2017, rating:'8.1',
+        genre:'Action / Fantasy',
+        poster:'https://image.tmdb.org/t/p/w500/lNQSIBvmEjNnR6UJr1OqjEiVKHa.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/4Z6vCBUiHZJIFPzqPGbOTFXVPxF.jpg',
+        desc:'A boy born without magic in a magic-filled world dreams of becoming the Wizard King through sheer will and determination.',
+        seasons:4, eps:[51,51,52,28],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt6888462/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Re:Zero', year:2016, rating:'8.2',
+        genre:'Fantasy / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/keqPHSElJHK0FRoTG3OIPjBGcf4.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/9kmTmFZeVkDmCojgJkUNqRaFUgm.jpg',
+        desc:'A young man is suddenly transported to a fantasy world where he discovers he has the power to return from death.',
+        seasons:3, eps:[13,25,13],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt5764096/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Haikyuu!!', year:2014, rating:'8.7',
+        genre:'Sports / Drama',
+        poster:'https://image.tmdb.org/t/p/w500/lmPzMeqJGAFtqo5Rfq0VJF1V1nW.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/3oKyRQbNQKJsriXMFPUg7nTFfqv.jpg',
+        desc:'A high school volleyball team with a short ace and a setter who hate each other must work together to reach the top.',
+        seasons:4, eps:[25,25,25,25],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt3398540/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Cowboy Bebop', year:1998, rating:'8.9',
+        genre:'Sci-Fi / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/zgsHQnHkHoLHHSY6Oo6Z8sn2oqV.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/bZOHBgRdHPVQvKGWX0bDM2kItXm.jpg',
+        desc:'A ragtag crew of bounty hunters chase criminals across the solar system in the year 2071.',
+        seasons:1, eps:[26],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt0213338/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Dragon Ball Z', year:1989, rating:'8.8',
+        genre:'Action / Adventure',
+        poster:'https://image.tmdb.org/t/p/w500/qEFHXMlLhbEHFaQB4ZEkFBDgfEl.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/xRIpDhKDXi17XPe3gzrljuiPRCZ.jpg',
+        desc:'Son Goku and his friends defend Earth against an assortment of villains ranging from intergalactic space fighters to androids.',
+        seasons:9, eps:[39,33,10,30,25,26,21,22,9],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt0214341/{season}/{episode}'
+    },
+    {
+        type:'anime', title:'Steins;Gate', year:2011, rating:'9.0',
+        genre:'Sci-Fi / Thriller',
+        poster:'https://image.tmdb.org/t/p/w500/6kMHzH6ggxUBPQyKFjHsI0HYFdY.jpg',
+        backdrop:'https://image.tmdb.org/t/p/original/gOXBqoOfLAFkdMFXK3cUc5Bwcyd.jpg',
+        desc:'A group of friends accidentally discover a way to send messages to the past, triggering a spiral of time-travel chaos.',
+        seasons:2, eps:[24,23],
+        urlTemplate:'https://streamimdb.ru/embed/tv/tt1910272/{season}/{episode}'
+    },
     {
         type:'anime', title:'Attack on Titan', year:2013, rating:'9.0',
         genre:'Action / Horror',

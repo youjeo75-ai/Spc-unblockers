@@ -145,6 +145,40 @@
             .player-info-bar { flex-direction: column; align-items: flex-start; }
             .player-title-block h1 { font-size: 1.1rem; }
         }
+
+        /* ── SPCFlix player: overlay sidebar ── */
+        .app-container { display: block !important; }
+        .sidebar {
+            position: fixed !important;
+            left: -280px !important;
+            top: 0 !important;
+            height: 100vh !important;
+            width: 260px !important;
+            z-index: 500 !important;
+            transition: left 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+            box-shadow: none;
+        }
+        .sidebar.flix-open {
+            left: 0 !important;
+            box-shadow: 4px 0 40px rgba(0,0,0,0.7) !important;
+        }
+        .sidebar-overlay {
+            display: block !important;
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(0,0,0,0.6) !important;
+            backdrop-filter: blur(4px) !important;
+            z-index: 499 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.3s !important;
+        }
+        .sidebar-overlay.flix-active {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        .main-content { margin-left: 0 !important; width: 100% !important; }
+        .top-nav { position: sticky; top: 0; z-index: 100; }
     </style>
 </head>
 <body>
@@ -384,14 +418,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Refresh
     document.getElementById('btnRefresh').addEventListener('click', loadPlayer);
 
-    // Sidebar toggle
+    // Sidebar toggle — overlay style
     const sidebar = document.getElementById('sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
+    function openSidebar()  { sidebar.classList.add('flix-open'); overlay.classList.add('flix-active'); }
+    function closeSidebar() { sidebar.classList.remove('flix-open'); overlay.classList.remove('flix-active'); }
     document.getElementById('menu-toggle').addEventListener('click', () => {
-        if (window.innerWidth <= 768) sidebar.classList.toggle('mobile-open');
-        else sidebar.classList.toggle('collapsed');
+        sidebar.classList.contains('flix-open') ? closeSidebar() : openSidebar();
     });
-    if (overlay) overlay.addEventListener('click', () => sidebar.classList.remove('mobile-open'));
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+    sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeSidebar));
 });
 </script>
 </body>

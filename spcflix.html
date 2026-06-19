@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPCFlix — Free Movies, Series & Anime</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        * { box-sizing: border-box; }
+
+        .flix-page { display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* Hero */
+        .flix-hero {
+            position: relative; width: calc(100% - 4rem);
+            margin: 1.5rem 2rem 0; height: 460px;
+            border-radius: 16px; overflow: hidden; flex-shrink: 0;
+        }
+        .flix-hero-bg {
+            position: absolute; inset: 0;
+            background-size: cover; background-position: center;
+            filter: brightness(0.4); transition: background-image 0.5s;
+        }
+        .flix-hero-grad {
+            position: absolute; inset: 0;
+            background: linear-gradient(to right, rgba(10,10,18,0.97) 30%, transparent 70%),
+                        linear-gradient(to top, rgba(10,10,18,1) 0%, transparent 45%);
+        }
+        .flix-hero-content {
+            position: absolute; bottom: 2rem; left: 2.5rem; max-width: 500px;
+        }
+        .flix-hero-badge {
+            display: inline-block; padding: 0.2rem 0.7rem;
+            background: #e50914; color: #fff; font-size: 0.65rem;
+            font-weight: 900; letter-spacing: 2px; border-radius: 4px; margin-bottom: 0.6rem;
+        }
+        .flix-hero-title {
+            font-family: 'Orbitron', sans-serif; font-size: 2.4rem; font-weight: 900;
+            color: #fff; line-height: 1.1; margin-bottom: 0.6rem;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.9);
+        }
+        .flix-hero-meta {
+            display: flex; gap: 1rem; align-items: center;
+            font-size: 0.85rem; margin-bottom: 0.7rem; flex-wrap: wrap;
+        }
+        .flix-hero-meta .r { color: #f5c518; font-weight: 700; }
+        .flix-hero-meta .m { color: rgba(255,255,255,0.65); }
+        .flix-hero-desc {
+            color: rgba(255,255,255,0.8); font-size: 0.88rem; line-height: 1.6;
+            margin-bottom: 1.3rem;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .flix-hero-btns { display: flex; gap: 0.75rem; }
+        .btn-flix-play {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.7rem 1.8rem; background: #fff; color: #0a0a12;
+            font-weight: 800; font-size: 0.95rem; border: none; border-radius: 6px;
+            cursor: pointer; transition: 0.2s; font-family: 'Outfit', sans-serif;
+        }
+        .btn-flix-play:hover { background: rgba(255,255,255,0.85); transform: scale(1.03); }
+        .btn-flix-info {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.7rem 1.4rem; background: rgba(100,100,110,0.65); color: #fff;
+            font-weight: 700; font-size: 0.95rem; border: none; border-radius: 6px;
+            cursor: pointer; transition: 0.2s; backdrop-filter: blur(8px); font-family: 'Outfit', sans-serif;
+        }
+        .btn-flix-info:hover { background: rgba(100,100,110,0.9); }
+
+        /* Tabs */
+        .flix-tabs {
+            display: flex; gap: 0.25rem; padding: 1.2rem 2rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .flix-tab {
+            padding: 0.55rem 1.3rem; border: none; background: none;
+            color: var(--text-muted); font-size: 0.88rem; font-weight: 600;
+            cursor: pointer; border-bottom: 2px solid transparent;
+            transition: 0.15s; font-family: 'Outfit', sans-serif;
+        }
+        .flix-tab.active { color: #fff; border-bottom-color: #e50914; }
+        .flix-tab:hover { color: #fff; }
+
+        /* Search */
+        .flix-searchbar {
+            padding: 1rem 2rem 0; display: flex; gap: 0.75rem;
+        }
+        .flix-search {
+            flex: 1; max-width: 360px;
+            padding: 0.55rem 1rem 0.55rem 2.4rem;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border); border-radius: 99px;
+            color: #fff; font-size: 0.88rem; outline: none;
+            font-family: 'Outfit', sans-serif;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: 0.7rem center;
+            transition: border-color 0.2s;
+        }
+        .flix-search:focus { border-color: #e50914; }
+        .flix-search::placeholder { color: var(--text-muted); }
+
+        /* Rows */
+        .flix-section { padding: 1.4rem 2rem 0; }
+        .flix-section-title {
+            font-size: 1.05rem; font-weight: 700; color: #fff;
+            margin-bottom: 0.9rem; display: flex; align-items: center; gap: 0.4rem;
+        }
+        .flix-section-title em { font-style: normal; color: #e50914; }
+        .flix-row {
+            display: flex; gap: 0.7rem; overflow-x: auto; padding-bottom: 0.6rem;
+            scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .flix-row::-webkit-scrollbar { height: 3px; }
+        .flix-row::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+        /* Cards */
+        .flix-card {
+            flex-shrink: 0; width: 155px; cursor: pointer;
+            transition: transform 0.22s; position: relative;
+        }
+        .flix-card:hover { transform: scale(1.08); z-index: 3; }
+        .flix-card:hover .flix-card-ov { opacity: 1; }
+        .flix-card-img {
+            width: 155px; height: 232px; border-radius: 8px;
+            background: var(--bg-card); overflow: hidden; position: relative;
+        }
+        .flix-card-img img {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+            transition: filter 0.2s;
+        }
+        .flix-card:hover .flix-card-img img { filter: brightness(0.7); }
+        .flix-card-img .no-img {
+            width: 100%; height: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 0.5rem;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: rgba(255,255,255,0.4); font-size: 2.5rem;
+        }
+        .flix-card-ov {
+            position: absolute; inset: 0; border-radius: 8px;
+            background: rgba(0,0,0,0.45); opacity: 0; transition: 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .flix-card-ov svg { color: #fff; filter: drop-shadow(0 2px 8px #000); }
+        .flix-card-badge {
+            position: absolute; top: 0.4rem; left: 0.4rem;
+            padding: 0.15rem 0.4rem; border-radius: 4px;
+            font-size: 0.58rem; font-weight: 900; letter-spacing: 1.5px;
+        }
+        .b-movie  { background: #e50914; color: #fff; }
+        .b-series { background: #0f89ca; color: #fff; }
+        .b-anime  { background: #7c3aed; color: #fff; }
+        .flix-card-info { padding: 0.45rem 0.1rem 0; }
+        .flix-card-name {
+            font-size: 0.79rem; font-weight: 600; color: #fff;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .flix-card-sub { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.1rem; }
+        .flix-card-rating { font-size: 0.68rem; color: #f5c518; font-weight: 700; }
+
+        /* Grid (search) */
+        .flix-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem; padding: 1.4rem 2rem;
+        }
+        .flix-grid .flix-card { width: 100%; }
+        .flix-grid .flix-card-img { width: 100%; }
+        .flix-empty {
+            padding: 3rem 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;
+        }
+
+        /* Modal overlay */
+        .flix-modal-bg {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            backdrop-filter: blur(14px); z-index: 3000;
+            display: flex; align-items: flex-start; justify-content: center;
+            padding: 2rem 1rem; overflow-y: auto;
+        }
+        .flix-modal {
+            width: 100%; max-width: 880px; background: #181818;
+            border-radius: 12px; overflow: hidden; position: relative;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.85);
+        }
+        .flix-modal-top {
+            position: relative; height: 400px; background: #0a0a12;
+        }
+        .flix-modal-top img {
+            width: 100%; height: 100%; object-fit: cover; opacity: 0.55; display: block;
+        }
+        .flix-modal-top .no-backdrop {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 5rem;
+        }
+        .flix-modal-top-grad {
+            position: absolute; inset: 0;
+            background: linear-gradient(to top, #181818 0%, transparent 55%);
+        }
+        .flix-modal-close {
+            position: absolute; top: 1rem; right: 1rem; width: 34px; height: 34px;
+            border-radius: 50%; background: rgba(0,0,0,0.75); border: none;
+            color: #fff; font-size: 1rem; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; z-index: 5; transition: 0.15s;
+        }
+        .flix-modal-close:hover { background: rgba(255,255,255,0.18); }
+        .flix-modal-top-info {
+            position: absolute; bottom: 1.2rem; left: 1.8rem; right: 1.8rem;
+        }
+        .flix-modal-top-info h2 {
+            font-family: 'Orbitron', sans-serif; font-size: 1.8rem;
+            font-weight: 900; color: #fff; margin-bottom: 0.8rem;
+        }
+        .flix-modal-body { padding: 1.2rem 1.8rem 2rem; }
+        .flix-modal-meta {
+            display: flex; flex-wrap: wrap; gap: 0.8rem;
+            font-size: 0.82rem; margin-bottom: 1rem;
+        }
+        .flix-modal-meta .imdb { color: #f5c518; font-weight: 800; }
+        .flix-modal-meta .dim { color: var(--text-muted); }
+        .flix-modal-desc { color: rgba(255,255,255,0.78); line-height: 1.7; font-size: 0.88rem; margin-bottom: 1.4rem; }
+
+        /* Episode picker */
+        .ep-label {
+            font-size: 0.72rem; font-weight: 800; letter-spacing: 1.5px;
+            color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.45rem;
+        }
+        .season-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.9rem; }
+        .season-tab {
+            padding: 0.28rem 0.85rem; border-radius: 4px;
+            border: 1px solid var(--border); background: rgba(255,255,255,0.04);
+            color: var(--text-muted); font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; transition: 0.15s; font-family: 'Outfit', sans-serif;
+        }
+        .season-tab.active, .season-tab:hover { background: #e50914; color: #fff; border-color: #e50914; }
+        .ep-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+            gap: 0.35rem; max-height: 150px; overflow-y: auto; margin-bottom: 1.2rem;
+        }
+        .ep-btn {
+            padding: 0.38rem 0.2rem; border-radius: 6px;
+            border: 1px solid var(--border); background: rgba(255,255,255,0.04);
+            color: var(--text-muted); font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; text-align: center; transition: 0.15s; font-family: 'Outfit', sans-serif;
+        }
+        .ep-btn:hover, .ep-btn.active { background: #e50914; color: #fff; border-color: #e50914; }
+
+        /* Player */
+        .flix-player-wrap {
+            position: relative; padding-top: 56.25%;
+            background: #000; border-radius: 8px; overflow: hidden; margin-top: 0.5rem;
+        }
+        .flix-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+        .flix-player-note {
+            text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;
+        }
+
+        /* Skeleton shimmer */
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .shimmer {
+            background: linear-gradient(90deg, var(--bg-card) 25%, rgba(255,255,255,0.06) 50%, var(--bg-card) 75%);
+            background-size: 200% 100%; animation: shimmer 1.4s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .flix-hero { margin: 1rem 1rem 0; width: calc(100% - 2rem); height: 300px; }
+            .flix-hero-title { font-size: 1.5rem; }
+            .flix-tabs, .flix-searchbar, .flix-section { padding-left: 1rem; padding-right: 1rem; }
+            .flix-card { width: 125px; }
+            .flix-card-img { width: 125px; height: 188px; }
+            .flix-grid { padding: 1rem; }
+            .flix-modal-top { height: 240px; }
+            .flix-modal-body { padding: 1rem; }
+            .flix-modal-top-info h2 { font-size: 1.2rem; }
+        }
+
+        /* ── SPCFlix: overlay sidebar (hidden by default) ── */
+        .app-container {
+            display: block !important;  /* kill the flex so sidebar doesn't take space */
+        }
+        .sidebar {
+            position: fixed !important;
+            left: -280px !important;
+            top: 0 !important;
+            height: 100vh !important;
+            width: 260px !important;
+            z-index: 500 !important;
+            transition: left 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+            box-shadow: none;
+        }
+        .sidebar.flix-open {
+            left: 0 !important;
+            box-shadow: 4px 0 40px rgba(0,0,0,0.7) !important;
+        }
+        .sidebar-overlay {
+            display: block !important;
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(0,0,0,0.6) !important;
+            backdrop-filter: blur(4px) !important;
+            z-index: 499 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.3s !important;
+        }
+        .sidebar.flix-open ~ .sidebar-overlay,
+        .sidebar-overlay.flix-active {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        .main-content {
+            margin-left: 0 !important;
+            width: 100% !important;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+<style>
+  /* ════════ SPCFlix Intro ════════ */
+  #flixIntro{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:#050505;
+    z-index:99999;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+  #flixIntro::before{
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 60%);
+    pointer-events:none;
+  }
+  #flixGrain{
+    position:absolute; inset:0; pointer-events:none; opacity:0.05; mix-blend-mode:overlay;
+    background-image: repeating-radial-gradient(circle at 20% 30%, #fff 0, transparent 1px);
+    background-size: 3px 3px;
+    animation: flixGrainShift 0.4s steps(4) infinite;
+  }
+  @keyframes flixGrainShift{
+    0%{ transform: translate(0,0); } 25%{ transform: translate(-1%,1%); }
+    50%{ transform: translate(1%,-1%); } 75%{ transform: translate(-1%,-1%); } 100%{ transform: translate(0,0); }
+  }
+  #flixSweep{
+    position:absolute; inset:0;
+    background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.0) 55%, transparent 65%);
+    transform: translateX(-120%); mix-blend-mode:screen; opacity:0;
+  }
+  .flixBars{ position:absolute; inset:0; display:flex; z-index:5; }
+  .flixBar{ flex:1; background:#050505; transform: scaleY(1); transform-origin: top; }
+  #flixLogoWrap{ position:relative; display:flex; flex-direction:column; align-items:center; }
+  #flixLogoText{
+    font-weight:800; font-size: clamp(3rem, 12vw, 7.5rem); letter-spacing: 0.02em;
+    color:#fff; position:relative; opacity:0; transform: scale(0.82);
+    text-shadow: 0 0 40px rgba(229,9,20,0);
+  }
+  #flixLogoText span.spc{ color:#e50914; }
+  #flixBlade{
+    position:absolute; top:-20%; bottom:-20%; left:50%; width:6px;
+    background: linear-gradient(180deg, transparent, #ff1f2b, transparent);
+    box-shadow: 0 0 30px 6px #ff1f2b, 0 0 60px 12px rgba(229,9,20,0.5);
+    opacity:0; transform: translateX(-50%) scaleY(0);
+  }
+  #flixTagline{
+    margin-top:0.9rem; font-size: clamp(0.65rem, 1.4vw, 0.95rem); letter-spacing:0.45em;
+    text-transform:uppercase; color: rgba(255,255,255,0.55); opacity:0; transform: translateY(8px);
+  }
+  #flixRule{ margin-top:1.1rem; width:0%; height:2px; background: linear-gradient(90deg, transparent, #e50914, transparent); }
+  #flixBurst{ position:absolute; width:10px; height:10px; border-radius:50%; border:1.5px solid rgba(229,9,20,0.7); opacity:0; }
+  #flixSkip{
+    position:absolute; bottom:2rem; right:2rem; color: rgba(255,255,255,0.35);
+    font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase; opacity:0; cursor:pointer; transition:color 0.2s;
+  }
+  #flixSkip:hover{ color: rgba(255,255,255,0.8); }
+
+  .flixBar{ animation: flixBarOpen 0.7s cubic-bezier(.77,0,.18,1) forwards; }
+  .flixBar:nth-child(1){ animation-delay:0.05s; } .flixBar:nth-child(2){ animation-delay:0.10s; }
+  .flixBar:nth-child(3){ animation-delay:0.15s; } .flixBar:nth-child(4){ animation-delay:0.20s; }
+  .flixBar:nth-child(5){ animation-delay:0.25s; } .flixBar:nth-child(6){ animation-delay:0.30s; }
+  @keyframes flixBarOpen{ to{ transform: scaleY(0); } }
+
+  #flixBlade{ animation: flixBladeIn 0.5s ease-out 0.65s forwards, flixBladeOut 0.4s ease-in 1.05s forwards; }
+  @keyframes flixBladeIn{ from{ opacity:0; transform: translateX(-50%) scaleY(0); } to{ opacity:1; transform: translateX(-50%) scaleY(1); } }
+  @keyframes flixBladeOut{ to{ opacity:0; } }
+
+  #flixLogoText{ animation: flixLogoPunch 0.55s cubic-bezier(.2,1.4,.4,1) 0.85s forwards; }
+  @keyframes flixLogoPunch{
+    0%{ opacity:0; transform: scale(0.82); text-shadow: 0 0 40px rgba(229,9,20,0); }
+    55%{ opacity:1; transform: scale(1.06); text-shadow: 0 0 50px rgba(229,9,20,0.55); }
+    100%{ opacity:1; transform: scale(1); text-shadow: 0 0 25px rgba(229,9,20,0.35); }
+  }
+  #flixSweep{ animation: flixSweepIn 0.7s ease-in-out 1.25s forwards; }
+  @keyframes flixSweepIn{
+    0%{ opacity:0; transform: translateX(-120%); } 15%{ opacity:1; } 85%{ opacity:1; }
+    100%{ opacity:0; transform: translateX(120%); }
+  }
+  #flixRule{ animation: flixRuleDraw 0.5s ease-out 1.35s forwards; }
+  @keyframes flixRuleDraw{ to{ width:78%; } }
+  #flixTagline{ animation: flixFadeUp 0.5s ease-out 1.55s forwards; }
+  @keyframes flixFadeUp{ to{ opacity:1; transform: translateY(0); } }
+  #flixBurst{ animation: flixBurstRing 0.8s ease-out 0.85s forwards; }
+  @keyframes flixBurstRing{ 0%{ opacity:0.9; transform: scale(1); } 100%{ opacity:0; transform: scale(40); } }
+  #flixSkip{ animation: flixFadeUp 0.4s ease-out 1.0s forwards; }
+
+  #flixIntro.flix-exit{ animation: flixIntroExit 0.65s cubic-bezier(.6,0,.2,1) forwards; }
+  @keyframes flixIntroExit{
+    0%{ opacity:1; filter: brightness(1); }
+    40%{ opacity:1; filter: brightness(1.4); }
+    100%{ opacity:0; filter: brightness(1.4); visibility:hidden; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    #flixIntro, #flixIntro *{ animation-duration:0.01ms !important; animation-delay:0s !important; }
+  }
+</style>
+
+<div id="flixIntro">
+  <div id="flixGrain"></div>
+  <div id="flixSweep"></div>
+  <div id="flixLogoWrap">
+    <div id="flixBurst"></div>
+    <div id="flixBlade"></div>
+    <div id="flixLogoText"><span class="spc">SPC</span>FLIX</div>
+    <div id="flixRule"></div>
+    <div id="flixTagline">Unblocked &amp; Unlimited</div>
+  </div>
+  <div class="flixBars">
+    <div class="flixBar"></div><div class="flixBar"></div><div class="flixBar"></div>
+    <div class="flixBar"></div><div class="flixBar"></div><div class="flixBar"></div>
+  </div>
+  <div id="flixSkip">Skip intro ›</div>
+</div>
+
+<script>
+(function(){
+  var intro = document.getElementById('flixIntro');
+  var skip = document.getElementById('flixSkip');
+  var played = sessionStorage.getItem('flixIntroPlayed');
+
+  function endIntro(){
+    intro.classList.add('flix-exit');
+    sessionStorage.setItem('flixIntroPlayed', '1');
+  }
+
+  if (played) {
+    intro.style.display = 'none';
+  } else {
+    setTimeout(endIntro, 2600);
+    skip.addEventListener('click', endIntro);
+  }
+})();
+</script>
+
+<div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="logo">
+            <div class="logo-icon"></div>
+            <h2>SPC UNBLOCK</h2>
+        </div>
+        <nav class="nav-menu">
+            <a href="index.html" class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                <span>Home</span>
+            </a>
+            <div class="divider"></div>
+            <div class="nav-header">SPCFlix</div>
+            <a href="#" class="nav-item active" data-flix="all">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/></svg>
+                <span>All</span>
+            </a>
+            <a href="#" class="nav-item" data-flix="movie">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                <span>Movies</span>
+            </a>
+            <a href="#" class="nav-item" data-flix="series">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span>Series</span>
+            </a>
+            <a href="#" class="nav-item" data-flix="anime">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                <span>Anime</span>
+            </a>
+            <div class="divider"></div>
+            <div class="nav-header">Games</div>
+            <a href="index.html" class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                <span>Back to Games</span>
+            </a>
+        </nav>
+    </aside>
+    <div class="sidebar-overlay"></div>
+
+    <main class="main-content">
+        <header class="top-nav">
+            <button class="menu-toggle" id="menu-toggle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div style="display:flex;align-items:center;gap:0.3rem;margin-left:0.5rem;">
+                <span style="font-family:'Orbitron',sans-serif;font-size:1.15rem;font-weight:900;color:#e50914;">SPC</span>
+                <span style="font-family:'Orbitron',sans-serif;font-size:1.15rem;font-weight:900;color:#fff;">FLIX</span>
+            </div>
+            <div style="margin-left:auto;"></div>
+        </header>
+
+        <!-- Hero -->
+        <div class="flix-hero" id="flixHero">
+            <div class="flix-hero-bg" id="heroBg"></div>
+            <div class="flix-hero-grad"></div>
+            <div class="flix-hero-content">
+                <div class="flix-hero-badge" id="heroBadge">MOVIE</div>
+                <h1 class="flix-hero-title" id="heroTitle">—</h1>
+                <div class="flix-hero-meta">
+                    <span class="r" id="heroRating">★ —</span>
+                    <span class="m" id="heroYear">—</span>
+                    <span class="m" id="heroGenre">—</span>
+                </div>
+                <p class="flix-hero-desc" id="heroDesc">—</p>
+                <div class="flix-hero-btns">
+                    <button class="btn-flix-play" id="heroPlayBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Play Now
+                    </button>
+                    <button class="btn-flix-info" id="heroInfoBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        More Info
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flix-tabs">
+            <button class="flix-tab active" data-tab="all">All</button>
+            <button class="flix-tab" data-tab="movie">🎬 Movies</button>
+            <button class="flix-tab" data-tab="series">📺 Series</button>
+            <button class="flix-tab" data-tab="anime">⛩ Anime</button>
+        </div>
+
+        <!-- Search -->
+        <div class="flix-searchbar">
+            <input class="flix-search" id="flixSearch" type="text" placeholder="Search titles, genres...">
+        </div>
+
+        <!-- Content injected here -->
+        <div id="flixContent"></div>
+
+    </main>
+</div>
+
+
+<script>
+const CATALOGUE = [
+
+// ── MOVIES ──────────────────────────────────────────────────────
+{type:'movie',title:'Inception',year:2010,rating:'8.8',genre:'Sci-Fi / Thriller',
+poster:'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/s3TBrRGB1iav7gFOCNx3H31MoES.jpg',
+desc:'A thief who steals corporate secrets through dream-sharing is given the inverse task of planting an idea into the mind of a C.E.O.',
+url:'https://streamimdb.ru/embed/movie/tt1375666'},
+
+{type:'movie',title:'Interstellar',year:2014,rating:'8.7',genre:'Sci-Fi / Adventure',
+poster:'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/rAiYTfKGqDCRIIqo664sY9XMsev.jpg',
+desc:"A team of explorers travel through a wormhole in space to ensure humanity's survival.",
+url:'https://streamimdb.ru/embed/movie/tt0816692'},
+
+{type:'movie',title:'The Dark Knight',year:2008,rating:'9.0',genre:'Action / Crime',
+poster:'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/nMKdUUepR0i5zn0y1T4CsSB5chy.jpg',
+desc:'When the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests of his ability to fight injustice.',
+url:'https://streamimdb.ru/embed/movie/tt0468569'},
+
+{type:'movie',title:'The Shawshank Redemption',year:1994,rating:'9.3',genre:'Drama',
+poster:'https://image.tmdb.org/t/p/w500/lyQBXzOQSuE59IsHyhrp0qIiPAz.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
+desc:'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.',
+url:'https://streamimdb.ru/embed/movie/tt0111161'},
+
+
+
+{type:'movie',title:'The Matrix',year:1999,rating:'8.7',genre:'Sci-Fi / Action',
+poster:'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg',
+desc:'A computer hacker learns the world he lives in is a simulated reality controlled by machines.',
+url:'https://streamimdb.ru/embed/movie/tt0133093'},
+
+{type:'movie',title:'Goodfellas',year:1990,rating:'8.7',genre:'Crime / Drama',
+poster:'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/sw7mordbZxgITU877yTpZCud90M.jpg',
+desc:'The story of Henry Hill and his life in the mob, covering his career from childhood through adulthood.',
+url:'https://streamimdb.ru/embed/movie/tt0099685'},
+
+{type:'movie',title:'Oppenheimer',year:2023,rating:'8.4',genre:'Biography / Drama',
+poster:'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg',
+desc:"The story of J. Robert Oppenheimer and his role in the development of the atomic bomb.",
+url:'https://streamimdb.ru/embed/movie/tt15398776'},
+
+{type:'movie',title:'Parasite',year:2019,rating:'8.5',genre:'Thriller / Drama',
+poster:'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg',
+desc:'Greed and class discrimination threaten the symbiotic relationship between two families.',
+url:'https://streamimdb.ru/embed/movie/tt6751668'},
+
+{type:'movie',title:'Joker',year:2019,rating:'8.4',genre:'Crime / Drama',
+poster:'https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg',
+backdrop:'https://m.media-amazon.com/images/M/MV5BMGQ1ZGZmNTAtM2MyYi00NmZhLTkwYmYtNTNlZDRhMzU2ZTgwXkEyXkFqcGdeQW1yb3NzZXI@._V1_.jpg',
+desc:'A failed comedian begins a slow descent into madness, transforming into the iconic villain Joker.',
+url:'https://streamimdb.ru/embed/movie/tt7286456'},
+
+{type:'movie',title:'Forrest Gump',year:1994,rating:'8.8',genre:'Drama / Romance',
+poster:'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
+backdrop:'https://i.guim.co.uk/img/media/78eb1f6bd0f92d4d3cf19f5bddda1a902e2a6fcd/0_95_2371_1422/master/2371.jpg?width=1200&quality=85&auto=format&fit=max&s=e38a50cd354d94cc959a8a34f6536a7c',
+desc:'The presidencies of Kennedy and Johnson unfold through the perspective of an Alabama man with an IQ of 75.',
+url:'https://streamimdb.ru/embed/movie/tt0109830'},
+
+{type:'movie',title:'Avengers: Endgame',year:2019,rating:'8.4',genre:'Action / Adventure',
+poster:'https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg',
+desc:"After the devastating events of Infinity War, the Avengers assemble to undo Thanos's actions.",
+url:'https://streamimdb.ru/embed/movie/tt4154796'},
+
+{type:'movie',title:'Gladiator',year:2000,rating:'8.5',genre:'Action / Drama',
+poster:'https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg',
+backdrop:'https://i0.wp.com/alexandermeddings.com/wp-content/uploads/2024/08/gladiator_-_h_-_2000.webp',
+desc:"A Roman general betrayed by the emperor's corrupt son seeks revenge as a gladiator.",
+url:'https://streamimdb.ru/embed/movie/tt0172495'},
+
+
+{type:'movie',title:'The Wolf of Wall Street',year:2013,rating:'8.2',genre:'Biography / Crime',
+poster:'https://m.media-amazon.com/images/M/MV5BMjIxMjgxNTk0MF5BMl5BanBnXkFtZTgwNjIyOTg2MDE@._V1_.jpg',
+backdrop:'https://wallpapers.com/images/hd/wolf-of-wall-street-1920-x-1080-background-u8klabj8ny8luo7t.jpg',
+desc:'Based on the true story of Jordan Belfort, a New York stockbroker who ran a massive fraud empire.',
+url:'https://streamimdb.ru/embed/movie/tt0993846'},
+
+{type:'movie',title:'Dune: Part One',year:2021,rating:'8.0',genre:'Sci-Fi / Adventure',
+poster:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSt7xlJEzb-xopDqcQ6iw9SbY8PAlJN8H7DYUzTqmZkwLT9o8JXv6YWvDMGRKwkyRnf6RHzGg&s=10',
+backdrop:'https://image.tmdb.org/t/p/original/jYEW5xZkZk2WTrdbMGAPFuBqbDc.jpg',
+desc:"Paul Atreides must travel to the most dangerous planet in the universe.",
+url:'https://streamimdb.ru/embed/movie/tt1160419'},
+
+{type:'movie',title:'Blade Runner 2049',year:2017,rating:'8.0',genre:'Sci-Fi / Drama',
+poster:'https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
+backdrop:'data:image/jpeg;base64,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',
+desc:'A new blade runner unearths a long-buried secret that has the potential to plunge society into chaos.',
+url:'https://streamimdb.ru/embed/movie/tt1856101'},
+
+{type:'movie',title:'Mad Max: Fury Road',year:2015,rating:'8.1',genre:'Action / Sci-Fi',
+poster:'https://image.tmdb.org/t/p/w500/8tZYtuWezp8JbcsvHYO0O46tFbo.jpg',
+backdrop:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQalK-ESDoxZ9A7ReRIRrQtBnTUJX6jQ85mLQ&s',
+desc:'In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.',
+url:'https://streamimdb.ru/embed/movie/tt1392190'},
+
+{type:'movie',title:'Spider-Man: Across the Spider-Verse',year:2023,rating:'8.7',genre:'Animation / Action',
+poster:'https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg',
+desc:'Miles Morales catapults across the Multiverse, encountering a team of Spider-People.',
+url:'https://streamimdb.ru/embed/movie/tt9362722'},
+
+
+
+// ── SERIES ──────────────────────────────────────────────────────
+{type:'series',title:'Breaking Bad',year:2008,rating:'9.5',genre:'Crime / Drama',
+poster:'https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg',
+desc:"A chemistry teacher turns to manufacturing meth to secure his family's future.",
+seasons:5,eps:[7,13,13,13,16],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt0903747/{season}/{episode}'},
+
+{type:'series',title:'Game of Thrones',year:2011,rating:'9.2',genre:'Fantasy / Drama',
+poster:'https://image.tmdb.org/t/p/w500/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/suopoADq0k8YZr4dQXcU6pToj6s.jpg',
+desc:'Nine noble families fight for control of Westeros while an ancient enemy returns.',
+seasons:8,eps:[10,10,10,10,10,10,7,6],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt0944947/{season}/{episode}'},
+
+{type:'series',title:'Stranger Things',year:2016,rating:'8.7',genre:'Sci-Fi / Horror',
+poster:'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
+backdrop:'https://wallpapers.com/images/hd/stranger-things-aesthetic-desktop-hrz824k4nubtbmy3.jpg',
+desc:'When a boy disappears, his mother and friends must confront terrifying supernatural forces.',
+seasons:4,eps:[8,9,9,9],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt4574334/{season}/{episode}'},
+
+
+
+{type:'series',title:'Rick and Morty',year:2013,rating:'9.1',genre:'Animation / Comedy',
+poster:'https://image.tmdb.org/t/p/w500/gdIrmf2DdY5mgN6ycVP0XlzKzbE.jpg',
+backdrop:'https://m.media-amazon.com/images/M/MV5BZGQyZjk2MzMtMTcyNC00NGU3LTlmNjItNDExMWM4ZDFhYmQ2XkEyXkFqcGc@._V1_QL75_UX500_CR0,234,500,281_.jpg',
+desc:'An elderly mad scientist and his good-hearted grandson go on fantastically dangerous adventures.',
+seasons:7,eps:[11,10,10,10,10,10,10],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt2861424/{season}/{episode}'},
+
+{type:'series',title:'The Last of Us',year:2023,rating:'8.8',genre:'Drama / Horror',
+poster:'https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg',
+backdrop:'https://lh3.googleusercontent.com/vGBG9_v_Fsz4UfrZCer7Eyfha1vUM9dlMKo54NqUgLpuC9AoOXpReK0rYctRnrek3yLkfbT_BuCNzsEkzBQQFz_fPA=s1280-w1280-h800',
+desc:"Twenty years after a fungal infection destroys civilization, a smuggler must escort a girl who may be humanity's last hope.",
+seasons:2,eps:[9,7],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt3581920/{season}/{episode}'},
+
+{type:'series',title:'The Boys',year:2019,rating:'8.7',genre:'Action / Comedy',
+poster:'https://image.tmdb.org/t/p/w500/stTEycfG9928HYGEISBFaG1ngjM.jpg',
+backdrop:'https://images.wallpapersden.com/image/download/the-boys-2_bGdtbGWUmZqaraWkpJRmbmdlrWZlbWU.jpg',
+desc:'A group of vigilantes fights back against corrupt superheroes who abuse their powers.',
+seasons:4,eps:[8,8,8,8],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt1190634/{season}/{episode}'},
+
+{type:'series',title:'Chernobyl',year:2019,rating:'9.4',genre:'Drama / History',
+poster:'https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg',
+backdrop:'https://m.media-amazon.com/images/M/MV5BZTVhYzgzZWYtNDIxYy00YThkLThiMWItOTJmNTI0ZjA4MjI2XkEyXkFqcGdeQWtlbGFyc2Vu._V1_.jpg',
+desc:'The true story of the 1986 nuclear disaster and the men and women who sacrificed to contain it.',
+seasons:1,eps:[5],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt7366338/{season}/{episode}'},
+
+{type:'series',title:'Black Mirror',year:2011,rating:'8.7',genre:'Sci-Fi / Thriller',
+poster:'https://image.tmdb.org/t/p/w500/7PRddO7z7mcPi21nZTCMGShAyy1.jpg',
+backdrop:'https://occ-0-8407-2218.1.nflxso.net/dnm/api/v6/6AYY37jfdO6hpXcMjf9Yu5cnmO0/AAAABVOcbIH9qUxLvr7AikfRezxcKVixy6JcIusan2fze4x_MRfda3mLfAw1QjZfBL96g8EoKFsVpDKc94m5dQdEreWE5vb4fQxfwcWh.jpg?r=fe6',
+desc:'An anthology series exploring the dark side of technology and human nature in the near future.',
+seasons:6,eps:[3,4,6,6,3,6],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt2085059/{season}/{episode}'},
+
+{type:'series',title:'Dark',year:2017,rating:'8.8',genre:'Sci-Fi / Mystery',
+poster:'https://image.tmdb.org/t/p/w500/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg',
+backdrop:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyM6AWNv8o8Ei1JC89zKDT0ZFcxTWRyrFGqg&s',
+desc:'A missing child sets off a chain of events uncovering a time travel conspiracy spanning four families.',
+seasons:3,eps:[10,8,8],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt5753856/{season}/{episode}'},
+
+
+
+{type:'series',title:'Succession',year:2018,rating:'8.9',genre:'Drama / Comedy',
+poster:'https://image.tmdb.org/t/p/w500/7HW47XbkNQ5fiwQFYGWdw9gs144.jpg',
+backdrop:'https://wallpapers.com/images/hd/succession-roy-family-in-dinner-table-hswlnykh9igvewyn.jpg',
+desc:'The Roy family, owners of a global media empire, battle for the future of the company.',
+seasons:4,eps:[10,10,9,10],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt7660850/{season}/{episode}'},
+
+{type:'series',title:'Squid Game',year:2021,rating:'8.0',genre:'Thriller / Drama',
+poster:'https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg',
+backdrop:'https://image.tmdb.org/t/p/original/qw3J9cNeLioOLoR68WX7z79aCdK.jpg',
+desc:"Hundreds of cash-strapped players compete in children's games for a prize at deadly risk.",
+seasons:2,eps:[9,7],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt10919420/{season}/{episode}'},
+
+{type:'series',title:'The Mandalorian',year:2019,rating:'8.7',genre:'Sci-Fi / Adventure',
+poster:'https://image.tmdb.org/t/p/w500/sWgBv7LV2PRoQgkxwlibdGXKz1S.jpg',
+backdrop:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMksQGx1FCGR2aRNnrcRiSKEGKxzZ1bQSHJw&s',
+desc:'A lone bounty hunter and a Force-sensitive child are pursued across the outer reaches of the galaxy.',
+seasons:3,eps:[8,8,8],
+urlTemplate:'https://streamimdb.ru/embed/tv/tt8111088/{season}/{episode}'},
+
+
+// ── ANIME ───────────────────────────────────────────────────────
+{
+    type: 'anime',
+    title: 'Attack on Titan',
+    year: 2013,
+    rating: '9.0',
+    genre: 'Action / Horror',
+    poster: 'https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg',
+    backdrop: 'https://4kwallpapers.com/images/wallpapers/attack-on-titan-3840x2160-10433.jpg',
+    desc: 'After his hometown is destroyed, Eren Yeager vows to cleanse the earth of the giant humanoid Titans.',
+    seasons: 4,
+    eps: [25, 12, 22, 29],
+    urlTemplate: 'https://streamimdb.ru/embed/tv/tt2560140/{season}/{episode}'
+  },
+  {
+    type: 'anime',
+    title: 'Demon Slayer',
+    year: 2019,
+    rating: '8.7',
+    genre: 'Action / Fantasy',
+    poster: 'https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg',
+    backdrop: 'https://images.wallpapersden.com/image/download/demon-slayer-kimetsu-no-yaiba-banner_bGttbmeUmZqaraWkpJRqZmdlrWZnbWU.jpg',
+    desc: 'Tanjiro becomes a Demon Slayer after his family is slaughtered and his sister turned into a demon.',
+    seasons: 4,
+    eps: [26, 7, 11, 13],
+    urlTemplate: 'https://streamimdb.ru/embed/tv/tt9335498/{season}/{episode}'
+  },
+  {
+    type: 'anime',
+    title: 'Jujutsu Kaisen',
+    year: 2020,
+    rating: '8.7',
+    genre: 'Action / Supernatural',
+    poster: 'https://image.tmdb.org/t/p/w500/lHu1wtNaczFPGFDTrjCSzeLPTKN.jpg',
+    backdrop: 'https://4kwallpapers.com/images/wallpapers/jujutsu-kaisen-2560x1080-19746.jpg',
+    desc: "A boy swallows a cursed talisman and enters a shaman school to locate the demon's body parts.",
+    seasons: 2,
+    eps: [24, 23],
+    urlTemplate: 'https://streamimdb.ru/embed/tv/tt12343534/{season}/{episode}'
+  },
+  {
+    type: 'anime',
+    title: 'One Piece',
+    year: 1999,
+    rating: '9.0',
+    genre: 'Adventure / Action',
+    poster: 'https://image.tmdb.org/t/p/w500/cMD9Ygz11zjJzAovURpO75Qg7rT.jpg',
+    backdrop: 'https://4kwallpapers.com/images/wallpapers/one-piece-season-15-2880x1800-22127.jpg',
+    desc: 'Monkey D. Luffy sails the seas in search of the One Piece to become King of the Pirates.',
+    seasons: 21,
+    eps: [61, 62, 48, 43, 39, 44, 52, 52, 46, 51, 45, 24, 52, 48, 39, 38, 23, 14, 20, 14, 11],
+    urlTemplate: 'https://streamimdb.ru/embed/tv/tt0388629/{season}/{episode}'
+  },
+
+{
+  type: 'anime',
+  title: 'Naruto Shippuden',
+  year: 2007,
+  rating: '8.7',
+  genre: 'Action / Adventure',
+  poster: 'https://wallup.net/wp-content/uploads/2019/09/08/341225-uchiha-sasuke-naruto-shippuden-uzumaki-naruto-748x421.jpg',
+  backdrop: 'https://wallup.net/wp-content/uploads/2019/09/08/341225-uchiha-sasuke-naruto-shippuden-uzumaki-naruto-748x421.jpg',
+  desc: 'Naruto returns from training to face new threats on his path to becoming Hokage.',
+  seasons: 21,
+  eps: [32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt0988824/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Chainsaw Man',
+  year: 2022,
+  rating: '8.5',
+  genre: 'Action / Dark Fantasy',
+  poster: 'https://4kwallpapers.com/images/walls/thumbs_2t/23013.jpg',
+  backdrop: 'https://4kwallpapers.com/images/walls/thumbs_2t/23013.jpg',
+  desc: 'Denji merges with his devil dog Pochita after being betrayed and killed, becoming the Chainsaw Man.',
+  seasons: 1,
+  eps: [12],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt14850020/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Death Note',
+  year: 2006,
+  rating: '9.0',
+  genre: 'Thriller / Supernatural',
+  poster: 'https://images7.alphacoders.com/661/thumb-1920-661083.jpg',
+  backdrop: 'https://images7.alphacoders.com/661/thumb-1920-661083.jpg',
+  desc: 'A student discovers a supernatural notebook that allows him to kill anyone whose name he writes in it.',
+  seasons: 1,
+  eps: [37],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt0877057/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Hunter x Hunter',
+  year: 2011,
+  rating: '9.0',
+  genre: 'Action / Adventure',
+  poster: 'https://images6.alphacoders.com/791/thumb-1920-791100.jpg',
+  backdrop: 'https://images6.alphacoders.com/791/thumb-1920-791100.jpg',
+  desc: 'A young boy sets out to become a Hunter and find his father.',
+  seasons: 6,
+  eps: [26,26,26,26,13,12],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt2098220/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Vinland Saga',
+  year: 2019,
+  rating: '8.8',
+  genre: 'Action / History',
+  poster: 'https://images8.alphacoders.com/130/1305112.jpeg',
+  backdrop: 'https://images8.alphacoders.com/130/1305112.jpeg',
+  desc: 'A young Viking warrior seeks revenge against the man who murdered his father.',
+  seasons: 2,
+  eps: [24,24],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt7431902/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Spy x Family',
+  year: 2022,
+  rating: '8.5',
+  genre: 'Action / Comedy',
+  poster: 'https://images7.alphacoders.com/120/1206753.png',
+  backdrop: 'https://images7.alphacoders.com/120/1206753.png',
+  desc: 'A spy must build a fake family, not knowing his wife is an assassin and his daughter a telepath.',
+  seasons: 2,
+  eps: [25,13],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt13706018/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'My Hero Academia',
+  year: 2016,
+  rating: '8.4',
+  genre: 'Action / Adventure',
+  poster: 'https://4kwallpapers.com/images/wallpapers/my-hero-academia-2560x1440-22826.jpg',
+  backdrop: 'https://4kwallpapers.com/images/wallpapers/my-hero-academia-2560x1440-22826.jpg',
+  desc: 'In a world where most people have superpowers, a boy born without any dreams of becoming the greatest hero.',
+  seasons: 7,
+  eps: [13,25,25,25,26,25,21],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt5626028/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Dragon Ball Z',
+  year: 1989,
+  rating: '8.8',
+  genre: 'Action / Adventure',
+  poster: 'https://images.alphacoders.com/647/647552.jpg',
+  backdrop: 'https://images.alphacoders.com/647/647552.jpg',
+  desc: 'Son Goku and his friends defend Earth against powerful enemies.',
+  seasons: 9,
+  eps: [39,33,10,30,25,26,21,22,9],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt0214341/{season}/{episode}'
+},
+
+{
+  type: 'anime',
+  title: 'Tokyo Revengers',
+  year: 2021,
+  rating: '7.9',
+  genre: 'Action / Drama',
+  poster: 'https://images3.alphacoders.com/130/1302159.jpg',
+  backdrop: 'https://images3.alphacoders.com/130/1302159.jpg',
+  desc: 'A middle-schooler travels back in time to prevent his childhood friends from being killed by a gang.',
+  seasons: 3,
+  eps: [24,13,13],
+  urlTemplate: 'https://streamimdb.ru/embed/tv/tt13005486/{season}/{episode}'
+}
+];
+
+// ─────────────────────────────────────────────────────────────
+let activeTab = 'all';
+let activeSeason = 1;
+let activeEp = 1;
+let currentItem = null;
+
+// ── Hero ────────────────────────────────────────────────────
+function pickHero() {
+    const pick = CATALOGUE[Math.floor(Math.random() * CATALOGUE.length)];
+    document.getElementById('heroBg').style.backgroundImage = `url('${pick.backdrop || pick.poster}')`;
+    document.getElementById('heroBadge').textContent = pick.type.toUpperCase();
+    document.getElementById('heroTitle').textContent = pick.title;
+    document.getElementById('heroRating').textContent = `★ ${pick.rating}`;
+    document.getElementById('heroYear').textContent = pick.year;
+    document.getElementById('heroGenre').textContent = pick.genre;
+    document.getElementById('heroDesc').textContent = pick.desc;
+    document.getElementById('heroPlayBtn').onclick = () => goToPlayer(pick);
+    document.getElementById('heroInfoBtn').onclick = () => goToPlayer(pick);
+}
+
+// ── Render content ──────────────────────────────────────────
+function render(tab, query) {
+    const content = document.getElementById('flixContent');
+    const list = CATALOGUE.filter(item =>
+        (tab === 'all' || item.type === tab) &&
+        (!query || item.title.toLowerCase().includes(query.toLowerCase()) || item.genre.toLowerCase().includes(query.toLowerCase()))
+    );
+
+    if (query) {
+        if (!list.length) { content.innerHTML = `<div class="flix-empty">No results for "<b>${query}</b>"</div>`; return; }
+        content.innerHTML = `<div class="flix-grid">${list.map(cardHTML).join('')}</div>`;
+        bindCards();
+        return;
+    }
+
+    // Genre row definitions per type
+    const GENRE_ROWS = {
+        movie: [
+            { label: 'Trending Now',        match: i => parseFloat(i.rating) >= 8.7 },
+            { label: 'Action & Adventure',  match: i => /action|adventure/i.test(i.genre) },
+            { label: 'Sci-Fi Picks',        match: i => /sci-fi/i.test(i.genre) },
+            { label: 'Crime & Thriller',    match: i => /crime|thriller/i.test(i.genre) },
+            { label: 'Drama',               match: i => /drama/i.test(i.genre) },
+            { label: 'Biography & History', match: i => /biography|history/i.test(i.genre) },
+            { label: 'Animation',           match: i => /animation/i.test(i.genre) },
+        ],
+        series: [
+            { label: 'Top Rated',           match: i => parseFloat(i.rating) >= 8.8 },
+            { label: 'Action & Adventure',  match: i => /action|adventure/i.test(i.genre) },
+            { label: 'Sci-Fi & Mystery',    match: i => /sci-fi|mystery/i.test(i.genre) },
+            { label: 'Crime & Thriller',    match: i => /crime|thriller/i.test(i.genre) },
+            { label: 'Horror & Dark',       match: i => /horror|dark/i.test(i.genre) },
+            { label: 'Comedy',              match: i => /comedy/i.test(i.genre) },
+            { label: 'Drama',               match: i => /drama/i.test(i.genre) },
+        ],
+        anime: [
+            { label: 'Most Popular',        match: i => parseFloat(i.rating) >= 8.5 },
+            { label: 'Action & Fighting',   match: i => /action/i.test(i.genre) },
+            { label: 'Fantasy & Adventure', match: i => /fantasy|adventure/i.test(i.genre) },
+            { label: 'Psychological',       match: i => /psychological|thriller/i.test(i.genre) },
+            { label: 'Drama & Romance',     match: i => /drama|romance/i.test(i.genre) },
+        ],
+    };
+
+    let html = '';
+
+    const types = tab === 'all' ? ['movie', 'series', 'anime'] : [tab];
+
+    for (const type of types) {
+        const pool = CATALOGUE.filter(i => i.type === type);
+        if (!pool.length) continue;
+
+        if (tab === 'all') {
+            const plainHeader = { movie: 'Movies', series: 'Series', anime: 'Anime' }[type];
+            html += `<div class="flix-section" style="padding-top:2rem;">
+                <div class="flix-section-title" style="font-size:1.25rem;border-bottom:2px solid #e50914;padding-bottom:0.5rem;margin-bottom:1.2rem;">
+                    <em>${plainHeader}</em>
+                </div>
+            </div>`;
+        }
+
+        const rows = GENRE_ROWS[type] || [];
+        const shown = new Set();
+
+        for (const row of rows) {
+            const items = pool.filter(i => row.match(i));
+            if (!items.length) continue;
+            items.forEach(i => shown.add(i.title));
+            html += `<div class="flix-section">
+                <div class="flix-section-title">${row.label}</div>
+                <div class="flix-row">${items.map(cardHTML).join('')}</div>
+            </div>`;
+        }
+
+        // "All [Type]" catch-all row for anything not shown yet
+        const rest = pool.filter(i => !shown.has(i.title));
+        if (rest.length) {
+            const allLabel = { movie: 'All Movies', series: 'All Series', anime: 'All Anime' }[type];
+            html += `<div class="flix-section">
+                <div class="flix-section-title">${allLabel}</div>
+                <div class="flix-row">${rest.map(cardHTML).join('')}</div>
+            </div>`;
+        }
+    }
+
+    content.innerHTML = html + '<div style="height:2rem;"></div>';
+    bindCards();
+}
+
+function cardHTML(item) {
+    const bc = {movie:'b-movie',series:'b-series',anime:'b-anime'}[item.type];
+    const bl = {movie:'MOVIE',series:'SERIES',anime:'ANIME'}[item.type];
+    const img = item.poster
+        ? `<img referrerpolicy="no-referrer" src="${item.poster}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=no-img>🎬</div>'">`
+        : `<div class="no-img">🎬</div>`;
+    return `<div class="flix-card" data-title="${item.title}">
+        <div class="flix-card-img">
+            ${img}
+            <div class="flix-card-badge ${bc}">${bl}</div>
+            <div class="flix-card-ov"><svg width="38" height="38" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+        </div>
+        <div class="flix-card-info">
+            <div class="flix-card-name">${item.title}</div>
+            <div class="flix-card-sub">${item.year} · ${item.genre.split('/')[0].trim()}</div>
+            <div class="flix-card-rating">★ ${item.rating}</div>
+        </div>
+    </div>`;
+}
+
+function goToPlayer(item) {
+    location.href = 'flix-player.html?title=' + encodeURIComponent(item.title);
+}
+
+function bindCards() {
+    document.querySelectorAll('.flix-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const item = CATALOGUE.find(i => i.title === card.dataset.title);
+            if (item) goToPlayer(item);
+        });
+    });
+}
+
+// ── Boot ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    pickHero();
+    render('all', '');
+
+    // Tab clicks
+    document.querySelectorAll('.flix-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.flix-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeTab = btn.dataset.tab;
+            document.getElementById('flixSearch').value = '';
+            render(activeTab, '');
+        });
+    });
+
+    // Sidebar nav
+    document.querySelectorAll('[data-flix]').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const tab = link.dataset.flix;
+            document.querySelectorAll('[data-flix]').forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            document.querySelectorAll('.flix-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+            activeTab = tab;
+            document.getElementById('flixSearch').value = '';
+            render(tab, '');
+        });
+    });
+
+    // Search
+    let t;
+    document.getElementById('flixSearch').addEventListener('input', e => {
+        clearTimeout(t);
+        t = setTimeout(() => render(activeTab, e.target.value.trim()), 180);
+    });
+
+    // Sidebar toggle — overlay style
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    function openSidebar()  { sidebar.classList.add('flix-open'); overlay.classList.add('flix-active'); }
+    function closeSidebar() { sidebar.classList.remove('flix-open'); overlay.classList.remove('flix-active'); }
+    document.getElementById('menu-toggle').addEventListener('click', () => {
+        sidebar.classList.contains('flix-open') ? closeSidebar() : openSidebar();
+    });
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+    // Close on nav link click
+    sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeSidebar));
+});
+</script>
+</body>
+</html>

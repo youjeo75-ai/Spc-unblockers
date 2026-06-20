@@ -33,8 +33,8 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // requires HTTPS, which Render provides
-    sameSite: 'lax',
+    secure: true, // required for sameSite:'none', and both Render+Vercel serve HTTPS
+    sameSite: 'none', // REQUIRED: frontend (Vercel) and backend (Render) are different domains
     maxAge: 1000 * 60 * 60 * 24 * 30 // 30 days
   }
 }));

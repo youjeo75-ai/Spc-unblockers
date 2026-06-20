@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: spc-unblockers-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: spc-unblockers-db
+          property: connectionString
+      - key: FRONTEND_ORIGIN
+        sync: false   # set this manually to your site's URL after deploy
+
+databases:
+  - name: spc-unblockers-db
+    plan: free

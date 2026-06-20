@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin | Spc Unblockers</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-wrap { margin: 2rem; }
+        .admin-wrap h1 { margin-bottom: 1.5rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        th { color: var(--text-muted); font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .badge-admin { background: rgba(139,92,246,0.2); color: #c4b5fd; }
+        .badge-banned { background: rgba(220,38,38,0.2); color: #fca5a5; }
+        .badge-active { background: rgba(34,197,94,0.15); color: #86efac; }
+        button.action-btn {
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-sm, 6px);
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-right: 0.4rem;
+        }
+        button.action-btn.danger { border-color: rgba(220,38,38,0.5); color: #fca5a5; }
+        button.action-btn.danger:hover { background: rgba(220,38,38,0.15); }
+        button.action-btn.safe:hover { background: rgba(34,197,94,0.15); }
+        #adminDenied { display:none; padding: 3rem; text-align: center; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="admin-wrap" id="adminWrap">
+        <h1>User Management</h1>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">
+            Kicking by user also bans their most recent known IP, so a kick actually keeps them out.
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Last IP</th>
+                    <th>Last Seen</th>
+                    <th>Joined</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="userTableBody">
+                <tr><td colspan="6">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="adminDenied">
+        <h2>Admin access only</h2>
+        <p>You're signed in, but this account doesn't have admin rights.</p>
+    </div>
+
+    <script>
+        const API_BASE = window.SPC_API_BASE || 'http://localhost:3000';
+
+        async function api(path, opts = {}) {
+            const res = await fetch(`${API_BASE}${path}`, {
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                ...opts
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Request failed');
+            return data;
+        }
+
+        function fmtDate(d) {
+            if (!d) return '—';
+            return new Date(d).toLocaleString();
+        }
+
+        async function loadUsers() {
+            const tbody = document.getElementById('userTableBody');
+            try {
+                const users = await api('/api/admin/users');
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6">No users yet.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = users.map(u => `
+                    <tr>
+                        <td>${u.username}${u.is_admin ? ' <span class="badge badge-admin">ADMIN</span>' : ''}</td>
+                        <td>${u.is_banned
+                            ? `<span class="badge badge-banned" title="${u.ban_reason || ''}">BANNED</span>`
+                            : '<span class="badge badge-active">Active</span>'}</td>
+                        <td>${u.last_ip || '—'}</td>
+                        <td>${fmtDate(u.last_seen_at)}</td>
+                        <td>${fmtDate(u.created_at)}</td>
+                        <td>
+                            ${u.is_banned
+                                ? `<button class="action-btn safe" onclick="unbanUser(${u.id})">Unban</button>`
+                                : `<button class="action-btn danger" onclick="kickUser(${u.id}, '${u.username}')">Kick / Ban</button>`}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="6">Error loading users: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function kickUser(userId, username) {
+            const reason = prompt(`Reason for banning "${username}"? (optional)`) || 'No reason provided.';
+            try {
+                await api('/api/admin/ban', { method: 'POST', body: JSON.stringify({ userId, reason }) });
+                loadUsers();
+            } catch (err) {
+                alert('Failed to ban: ' + err.message);
+            }
+        }
+
+        async function unbanUser(userId) {
+            try {
+                await api('/api/admin/unban', { method: 'POST', body: JSON.stringify({ userId }) });
+                loadUsers();
+            } catch (err) {
+                alert('Failed to unban: ' + err.message);
+            }
+        }
+
+        async function init() {
+            try {
+                const me = await api('/api/me');
+                if (!me.isAdmin) {
+                    document.getElementById('adminWrap').style.display = 'none';
+                    document.getElementById('adminDenied').style.display = 'block';
+                    return;
+                }
+                loadUsers();
+                setInterval(loadUsers, 15000); // light auto-refresh
+            } catch (err) {
+                window.location.href = 'login.html';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

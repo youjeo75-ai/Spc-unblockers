@@ -1,0 +1,2071 @@
+/* ═══════════════════════════════════════════
+   community.js — Community chat, calling & profiles
+   Split out of the old monolithic script.js.
+   ONLY loaded on index.html (Community tab lives there).
+   Depends on: core.js loaded first (uses showNotification),
+   PeerJS loaded first (window.Peer).
+═══════════════════════════════════════════ */
+
+// ─── UTILS (needed by this module) ────────────────────────────────────────────
+function now() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function escapeHTML(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ═══════════════════════════════════════════
+   COMMUNITY MODE v2 — PROFILE, REAL P2P CHAT, GROUP CHAT, MULTI-CALL
+═══════════════════════════════════════════ */
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let currentUser = JSON.parse(localStorage.getItem('spc_current_user') || 'null');
+// currentUser = { username, password, avatar (base64|null), bio }
+
+let selectedChat = null;
+// selectedChat = { type: 'dm'|'group', id: string, name: string, members?: [] }
+
+// PeerJS
+let peer = null;
+let activeConns = {};      // { peerId: DataConnection }
+let activeCall = null;     // outgoing/active MediaConnection (1:1)
+let groupCallConns = {};   // { peerId: MediaConnection } for group calls
+let localStream = null;
+
+// Chat storage persisted across refreshes
+let chatHistory = JSON.parse(localStorage.getItem('spc_chat_history') || '{}');
+
+// Clean out old system noise (call logs, not-connected warnings) from saved history
+(function cleanChatHistory() {
+    let changed = false;
+    Object.keys(chatHistory).forEach(id => {
+        const before = chatHistory[id].length;
+        chatHistory[id] = chatHistory[id].filter(msg => {
+            if (msg.sender === 'System') return false;          // remove all system messages
+            return true;
+        });
+        if (chatHistory[id].length !== before) changed = true;
+    });
+    if (changed) {
+        try { localStorage.setItem('spc_chat_history', JSON.stringify(chatHistory)); } catch(e) {}
+    }
+})();
+
+function saveChatHistory() {
+    try { localStorage.setItem('spc_chat_history', JSON.stringify(chatHistory)); } catch(e){}
+}
+
+// Group chats: { groupId: { name, members: [username,...] } }
+let groupChats = JSON.parse(localStorage.getItem('spc_groups') || '{}');
+
+// ─── ADMIN CONFIG ────────────────────────────────────────────────────────────
+const ADMIN_USERNAME = 'TTG';
+const ADMIN_PASSWORD = 'ttttg';
+
+function seedAdminAccount() {
+    let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+    const idx = users.findIndex(u => u.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
+    if (idx < 0) {
+        users.unshift({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD, avatar: null, bio: 'Admin', isAdmin: true });
+    } else {
+        // Always enforce correct password and admin flag
+        users[idx].password = ADMIN_PASSWORD;
+        users[idx].isAdmin = true;
+    }
+    localStorage.setItem('spc_users', JSON.stringify(users));
+}
+seedAdminAccount();
+
+function isAdmin(user) {
+    return user && user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase();
+}
+function usernameToPeerId(u) { return 'spc2-' + u.toLowerCase().replace(/[^a-z0-9]/g, '-'); }
+function peerIdToUsername(id) { return id.replace(/^spc2-/, ''); }
+function dmId(a, b) { return [a,b].map(s=>s.toLowerCase()).sort().join('__'); }
+function groupId(name) { return 'grp__' + name.toLowerCase().replace(/\s+/g,'-'); }
+
+// ─── AVATAR HELPERS ───────────────────────────────────────────────────────────
+function avatarEl(user, size = 38, fontSize = '0.85rem') {
+    const av = user && user.avatar;
+    if (av) {
+        return `<img src="${av}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;display:block;" alt="">`;
+    }
+    const initials = (user && user.username ? user.username : '?').substring(0,2).toUpperCase();
+    return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;font-weight:800;color:white;font-size:${fontSize};flex-shrink:0;">${initials}</div>`;
+}
+
+// ─── VIEW SWITCHES ────────────────────────────────────────────────────────────
+function showCommunityTab() {
+    const gv = document.getElementById('gamesView');
+    const cv = document.getElementById('communityView');
+    if (gv && cv) {
+        gv.style.display = 'none';
+        cv.style.display = 'flex';
+        window.location.hash = 'community';
+        document.querySelectorAll('.nav-item').forEach(i => {
+            i.classList.toggle('active', i.textContent.trim() === 'Community');
+        });
+        renderCommunityPanel();
+    }
+}
+function showGamesTab() {
+    const gv = document.getElementById('gamesView');
+    const cv = document.getElementById('communityView');
+    if (gv && cv) {
+        gv.style.display = 'block';
+        cv.style.display = 'none';
+        if (window.location.hash === '#community') window.location.hash = '';
+        document.querySelectorAll('.nav-item').forEach(i => {
+            i.classList.toggle('active', i.textContent.trim() === 'Home');
+        });
+    }
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function initCommunityAuth() {
+    updateAuthUI();
+    if (window.location.hash === '#community') showCommunityTab();
+    window.addEventListener('hashchange', () => {
+        if (window.location.hash === '#community') showCommunityTab();
+        else if (window.location.hash === '') showGamesTab();
+    });
+
+    // Login ↔ Signup toggle
+    const switchLink = document.getElementById('authSwitchLink');
+    let isSignUp = false;
+    if (switchLink) {
+        switchLink.addEventListener('click', e => {
+            e.preventDefault();
+            isSignUp = !isSignUp;
+            document.querySelector('#communityAuth h2').textContent = isSignUp ? 'REGISTER' : 'COMMUNITY';
+            document.getElementById('authSubmitBtn').textContent = isSignUp ? 'Create Account' : 'Log In';
+            document.getElementById('authSwitchText').textContent = isSignUp ? 'Already have an account?' : "Don't have an account?";
+            switchLink.textContent = isSignUp ? 'Log In' : 'Sign Up';
+            // Show/hide avatar upload on signup
+            const avGroup = document.getElementById('authAvatarGroup');
+            if (avGroup) avGroup.style.display = isSignUp ? 'block' : 'none';
+            document.getElementById('authError').style.display = 'none';
+        });
+    }
+
+    // Auth form
+    const authForm = document.getElementById('authForm');
+    if (authForm) {
+        authForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const username = document.getElementById('authUsername').value.trim();
+            const password = document.getElementById('authPassword').value;
+            if (!username || !password) { showAuthError('Fill in all fields.'); return; }
+            if (username.length < 3) { showAuthError('Username min 3 chars.'); return; }
+            if (password.length < 5) { showAuthError('Password min 5 chars.'); return; }
+
+            let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+            if (isSignUp) {
+                if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+                    showAuthError('Username already taken.'); return;
+                }
+                // Read avatar if provided
+                let avatarData = null;
+                const avatarFile = document.getElementById('authAvatarFile');
+                if (avatarFile && avatarFile.files[0]) {
+                    // We'll read it async then login
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        avatarData = ev.target.result;
+                        const newUser = { username, password, avatar: avatarData, bio: '' };
+                        users.push(newUser);
+                        localStorage.setItem('spc_users', JSON.stringify(users));
+                        doLogin(newUser);
+                    };
+                    reader.readAsDataURL(avatarFile.files[0]);
+                    return;
+                }
+                const newUser = { username, password, avatar: null, bio: '' };
+                users.push(newUser);
+                localStorage.setItem('spc_users', JSON.stringify(users));
+                doLogin(newUser);
+            } else {
+                const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+                if (!user) { showAuthError('Wrong username or password.'); return; }
+                doLogin(user);
+            }
+            document.getElementById('authUsername').value = '';
+            document.getElementById('authPassword').value = '';
+            document.getElementById('authError').style.display = 'none';
+        });
+    }
+
+    function showAuthError(msg) {
+        const el = document.getElementById('authError');
+        if (el) { el.textContent = msg; el.style.display = 'block'; }
+    }
+
+    function doLogin(user) {
+        currentUser = user;
+        localStorage.setItem('spc_current_user', JSON.stringify(user));
+        // Show UI instantly — no lag
+        const ca = document.getElementById('communityAuth');
+        const cc = document.getElementById('communityChat');
+        if (ca) ca.style.display = 'none';
+        if (cc) cc.style.display = 'block';
+        updateAuthUI();
+        showNotification(`Welcome, ${user.username}!`, 'success');
+        // Defer heavy work (PeerJS connect + DOM restore) so UI renders first
+        setTimeout(() => {
+            renderCommunityPanel();
+            initPeer();
+        }, 50);
+    }
+
+    // Header login
+    const headerLoginBtn = document.getElementById('headerLoginBtn');
+    if (headerLoginBtn) {
+        headerLoginBtn.addEventListener('click', () => {
+            if (document.getElementById('communityView')) showCommunityTab();
+            else window.location.href = 'index.html#community';
+        });
+    }
+
+    // Logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            if (peer && !peer.destroyed) peer.destroy();
+            peer = null; activeConns = {}; activeCall = null; groupCallConns = {};
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            chatHistory = {}; selectedChat = null; currentUser = null;
+            localStorage.removeItem('spc_current_user');
+            localStorage.removeItem('spc_chat_history');
+            updateAuthUI();
+            const cc = document.getElementById('communityChat');
+            const ca = document.getElementById('communityAuth');
+            if (cc) cc.style.display = 'none';
+            if (ca) ca.style.display = 'block';
+            showNotification('Logged out', 'info');
+        });
+    }
+
+    if (currentUser) {
+        setTimeout(() => {
+            initPeer();
+        }, 100);
+    }
+}
+
+// ─── AUTH UI ──────────────────────────────────────────────────────────────────
+function updateAuthUI() {
+    const hlb = document.getElementById('headerLoginBtn');
+    const ub = document.getElementById('userBar');
+    const uw = document.getElementById('userWelcome');
+    const headerAvatar = document.getElementById('headerAvatar');
+    if (currentUser) {
+        if (hlb) { hlb.style.display = 'none'; hlb.style.visibility = 'hidden'; }
+        if (ub) { ub.style.display = 'flex'; ub.style.visibility = 'visible'; }
+        if (uw) uw.textContent = currentUser.username;
+        if (headerAvatar) headerAvatar.innerHTML = avatarEl(currentUser, 32, '0.7rem');
+    } else {
+        if (hlb) { hlb.style.display = 'inline-flex'; hlb.style.visibility = 'visible'; }
+        if (ub) { ub.style.display = 'none'; ub.style.visibility = 'hidden'; }
+    }
+}
+
+// ─── PEERJS ───────────────────────────────────────────────────────────────────
+function initPeer() {
+    if (!currentUser) return;
+    // Destroy old peer if fully dead
+    if (peer && peer.destroyed) { peer = null; }
+    if (peer && !peer.destroyed) return; // already running
+
+    setPeerStatus('Connecting...');
+    const primaryId = usernameToPeerId(currentUser.username);
+
+    function setupPeerHandlers(p) {
+        p.on('connection', conn => handleIncomingConn(conn));
+        p.on('call', call => {
+            const callerName = peerIdToUsername(call.peer);
+            if (call.metadata && call.metadata.groupId) {
+                handleIncomingGroupCall(call, callerName);
+            } else {
+                showIncomingCallUI(callerName, call);
+            }
+        });
+        p.on('disconnected', () => {
+            setPeerStatus('Reconnecting...');
+            try { p.reconnect(); } catch(e) { setPeerStatus('● Online'); }
+        });
+    }
+
+    try {
+        peer = new Peer(primaryId, { debug: 0 });
+    } catch(e) { setPeerStatus('● Online'); return; }
+
+    peer.on('open', () => {
+        setPeerStatus('● Online');
+    });
+
+    peer.on('error', err => {
+        if (err.type === 'unavailable-id') {
+            // Another tab has our ID — make a fallback peer for receiving,
+            // but flag the primary ID so outgoing connects still target the right peer
+            setPeerStatus('● Online');
+            try {
+                const fallbackId = primaryId + '-' + Math.random().toString(36).substr(2, 5);
+                const fallback = new Peer(fallbackId, { debug: 0 });
+                fallback.on('open', () => { peer = fallback; setPeerStatus('● Online'); });
+                setupPeerHandlers(fallback);
+                fallback.on('error', () => {});
+            } catch(e) { /* silently keep going */ }
+        } else if (err.type === 'peer-unavailable') {
+            // Target peer not online — already handled per-call/conn
+        } else {
+            setPeerStatus('● Online');
+            console.warn('PeerJS:', err.type);
+        }
+    });
+
+    setupPeerHandlers(peer);
+}
+
+function setPeerStatus(txt) {
+    const el = document.getElementById('peerStatusIndicator');
+    if (el) {
+        el.textContent = txt;
+        el.style.color = txt.includes('Online') ? '#22c55e' : 'var(--text-muted)';
+    }
+}
+
+// Periodically ensure peer is alive
+setInterval(() => {
+    if (currentUser && (!peer || peer.destroyed || peer.disconnected)) {
+        initPeer();
+    }
+}, 15000);
+
+// ─── DATA CONNECTION HANDLER ──────────────────────────────────────────────────
+function handleIncomingConn(conn) {
+    conn.on('open', () => {
+        const uname = peerIdToUsername(conn.peer);
+        activeConns[conn.peer] = conn;
+
+        // Announce our profile
+        conn.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+
+        // Ensure DM chat tab exists
+        const cid = dmId(currentUser.username, uname);
+        if (!chatHistory[cid]) chatHistory[cid] = [];
+        addChatTab({ type: 'dm', id: cid, name: uname });
+    });
+
+    conn.on('data', data => handleIncomingData(conn, data));
+    conn.on('close', () => {
+        const uname = peerIdToUsername(conn.peer);
+        delete activeConns[conn.peer];
+        refreshChatList();
+        showNotification(`${uname} disconnected`, 'info');
+    });
+}
+
+function handleIncomingData(conn, data) {
+    const senderName = peerIdToUsername(conn.peer);
+    switch (data.type) {
+        case 'profile':
+            // Update stored avatar for this user
+            storeRemoteProfile(data.username, data.avatar, data.bio);
+            break;
+        case 'message': {
+            const cid = dmId(currentUser.username, senderName);
+            if (!chatHistory[cid]) chatHistory[cid] = [];
+            const msg = { sender: senderName, text: escapeHTML(data.text), time: now(), avatarData: data.avatarData };
+            chatHistory[cid].push(msg);
+            saveChatHistory();
+            if (selectedChat && selectedChat.id === cid) renderMessages();
+            else { flashTab(cid); showNotification(`💬 ${senderName}: ${data.text.substring(0,40)}`, 'info'); }
+            refreshChatList();
+            break;
+        }
+        case 'group_message': {
+            const gid = data.groupId;
+            if (!chatHistory[gid]) chatHistory[gid] = [];
+            const msg = { sender: senderName, text: escapeHTML(data.text), time: now(), avatarData: data.avatarData };
+            chatHistory[gid].push(msg);
+            saveChatHistory();
+            if (selectedChat && selectedChat.id === gid) renderMessages();
+            else { flashTab(gid); showNotification(`👥 ${senderName} (${data.groupName}): ${data.text.substring(0,35)}`, 'info'); }
+            refreshChatList();
+            break;
+        }
+        case 'group_invite': {
+            if (!groupChats[data.groupId]) {
+                groupChats[data.groupId] = { name: data.groupName, members: data.members, photo: data.photo || null, admin: data.admin || senderName };
+                localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                if (!chatHistory[data.groupId]) chatHistory[data.groupId] = [];
+                addChatTab({ type: 'group', id: data.groupId, name: data.groupName, members: data.members, photo: data.photo, admin: data.admin });
+                showNotification(`👥 You were added to "${data.groupName}"`, 'success');
+            }
+            break;
+        }
+        case 'group_update': {
+            if (data.action === 'delete') {
+                delete groupChats[data.groupId];
+                delete chatHistory[data.groupId];
+                localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                saveChatHistory();
+                if (selectedChat && selectedChat.id === data.groupId) {
+                    selectedChat = null;
+                    document.getElementById('chatEmptyState').style.display = 'flex';
+                    document.getElementById('chatActiveState').style.display = 'none';
+                }
+                refreshChatList();
+                showNotification(`Group "${data.name}" was deleted by admin.`, 'info');
+            } else if (data.action === 'update' || data.action === 'remove') {
+                if (groupChats[data.groupId]) {
+                    groupChats[data.groupId].name = data.name;
+                    groupChats[data.groupId].members = data.members;
+                    groupChats[data.groupId].photo = data.photo;
+                    if (data.admin) groupChats[data.groupId].admin = data.admin;
+                    localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                    if (selectedChat && selectedChat.id === data.groupId) {
+                        selectedChat.name = data.name;
+                        selectedChat.members = data.members;
+                        selectedChat.photo = data.photo;
+                        openChat(selectedChat);
+                    }
+                    refreshChatList();
+                }
+            }
+            break;
+        }
+        case 'group_call_invite': {
+            showIncomingGroupCallInvite(data, senderName);
+            break;
+        }
+        case 'kicked': {
+            // We got kicked by admin — show message and disconnect
+            showNotification(`⛔ ${data.message || 'You were disconnected by an admin.'}`, 'error');
+            // Force close this connection
+            try { conn.close(); } catch(e) {}
+            delete activeConns[conn.peer];
+            refreshChatList();
+            break;
+        }
+    }
+}
+
+// Store remote user profiles so their avatar shows in chat
+function storeRemoteProfile(username, avatar, bio) {
+    let remotes = JSON.parse(localStorage.getItem('spc_remote_profiles') || '{}');
+    remotes[username.toLowerCase()] = { avatar, bio };
+    localStorage.setItem('spc_remote_profiles', JSON.stringify(remotes));
+}
+function getRemoteProfile(username) {
+    let remotes = JSON.parse(localStorage.getItem('spc_remote_profiles') || '{}');
+    return remotes[username.toLowerCase()] || null;
+}
+function getAvatarFor(username) {
+    if (currentUser && username.toLowerCase() === currentUser.username.toLowerCase()) return currentUser.avatar;
+    const r = getRemoteProfile(username);
+    return r ? r.avatar : null;
+}
+
+// ─── COMMUNITY PANEL ──────────────────────────────────────────────────────────
+function renderCommunityPanel() {
+    const ca = document.getElementById('communityAuth');
+    const cc = document.getElementById('communityChat');
+    if (!ca || !cc) return;
+    if (!currentUser) {
+        ca.style.display = 'block'; cc.style.display = 'none';
+    } else {
+        ca.style.display = 'none'; cc.style.display = 'block';
+        renderMyProfileCard();
+        // Restore chat tabs from saved history — batch, no per-item refreshChatList
+        Object.keys(chatHistory).forEach(id => {
+            if (id.startsWith('grp__')) {
+                const g = groupChats[id];
+                if (g && !document.getElementById('chattab-' + id)) {
+                    if (!chatHistory[id]) chatHistory[id] = [];
+                    // just register, don't render yet
+                }
+            } else {
+                const otherUser = id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase());
+                if (otherUser && !document.getElementById('chattab-' + id)) {
+                    if (!chatHistory[id]) chatHistory[id] = [];
+                }
+            }
+        });
+        // Single render pass for the whole list
+        refreshChatList();
+        bindChatHandlers();
+        bindCallHandlers();
+    }
+}
+
+// ─── MY PROFILE CARD (left sidebar top) ───────────────────────────────────────
+function renderMyProfileCard() {
+    const el = document.getElementById('myProfileCard');
+    if (!el || !currentUser) return;
+    el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:1rem;border-bottom:1px solid var(--border);">
+            <div style="position:relative;cursor:pointer;" id="profileAvatarClick" title="Change avatar">
+                ${avatarEl(currentUser, 42, '1rem')}
+                <div style="position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:0.2s;" class="avatar-hover-overlay">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+                <input type="file" id="avatarUploadInput" accept="image/*" style="display:none;">
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:0.4rem;">
+                    <div style="font-weight:700;font-size:0.95rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(currentUser.username)}</div>
+                    ${isAdmin(currentUser) ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:0.5px;">ADMIN</span>' : ''}
+                </div>
+                <div style="font-size:0.75rem;color:#22c55e;font-weight:600;">● Online</div>
+            </div>
+            <div style="display:flex;gap:0.25rem;">
+                ${isAdmin(currentUser) ? `<button id="btnAdminPanel" title="Admin Panel" style="background:none;border:none;color:#f59e0b;cursor:pointer;padding:4px;border-radius:6px;transition:0.2s;" onmouseover="this.style.color='#fbbf24'" onmouseout="this.style.color='#f59e0b'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </button>` : ''}
+                <button id="btnEditProfile" title="Edit profile" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;border-radius:6px;transition:0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Avatar hover effect
+    const profileAvClick = document.getElementById('profileAvatarClick');
+    const avatarHover = el.querySelector('.avatar-hover-overlay');
+    if (profileAvClick) {
+        profileAvClick.addEventListener('mouseenter', () => avatarHover.style.opacity = '1');
+        profileAvClick.addEventListener('mouseleave', () => avatarHover.style.opacity = '0');
+        profileAvClick.addEventListener('click', () => document.getElementById('avatarUploadInput').click());
+    }
+
+    // Avatar file upload
+    const avatarInput = document.getElementById('avatarUploadInput');
+    if (avatarInput) {
+        avatarInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                currentUser.avatar = ev.target.result;
+                // Save back to users array
+                let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+                const idx = users.findIndex(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
+                if (idx >= 0) users[idx].avatar = currentUser.avatar;
+                localStorage.setItem('spc_users', JSON.stringify(users));
+                localStorage.setItem('spc_current_user', JSON.stringify(currentUser));
+                updateAuthUI();
+                renderMyProfileCard();
+                // Broadcast new avatar to all open connections
+                Object.values(activeConns).forEach(c => {
+                    if (c.open) c.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                });
+                showNotification('Profile picture updated!', 'success');
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Edit profile modal
+    const btnEdit = document.getElementById('btnEditProfile');
+    if (btnEdit) btnEdit.addEventListener('click', showEditProfileModal);
+
+    // Admin panel button
+    const btnAdmin = document.getElementById('btnAdminPanel');
+    if (btnAdmin) btnAdmin.addEventListener('click', showAdminPanel);
+}
+
+function showEditProfileModal() {
+    let modal = document.getElementById('editProfileModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'editProfileModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(10px);z-index:2000;display:flex;align-items:center;justify-content:center;`;
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;width:360px;max-width:95vw;">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;margin-bottom:1.5rem;color:var(--text-main);letter-spacing:1px;">EDIT PROFILE</h3>
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+                <div style="text-align:center;">
+                    <div style="display:inline-block;position:relative;cursor:pointer;" id="modalAvatarClick">
+                        ${avatarEl(currentUser, 72, '1.5rem')}
+                        <div style="position:absolute;bottom:0;right:0;width:22px;height:22px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-card);">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                        <input type="file" id="modalAvatarFile" accept="image/*" style="display:none;">
+                    </div>
+                    <p style="color:var(--text-muted);font-size:0.78rem;margin-top:0.5rem;">Click to change photo</p>
+                </div>
+                <div>
+                    <label style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Username</label>
+                    <input id="editUsername" type="text" value="${escapeHTML(currentUser.username)}" style="width:100%;padding:0.65rem 1rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Bio</label>
+                    <textarea id="editBio" rows="2" placeholder="What are you playing?" style="width:100%;padding:0.65rem 1rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;resize:none;font-family:inherit;">${escapeHTML(currentUser.bio||'')}</textarea>
+                </div>
+                <div id="editProfileError" style="color:var(--accent);font-size:0.85rem;display:none;"></div>
+                <div style="display:flex;gap:0.75rem;margin-top:0.5rem;">
+                    <button id="btnCancelEdit" class="btn btn-secondary" style="flex:1;justify-content:center;">Cancel</button>
+                    <button id="btnSaveProfile" class="btn btn-primary" style="flex:1;justify-content:center;">Save</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    let newAvatarData = currentUser.avatar;
+
+    document.getElementById('modalAvatarClick').addEventListener('click', () => document.getElementById('modalAvatarFile').click());
+    document.getElementById('modalAvatarFile').addEventListener('change', e => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            newAvatarData = ev.target.result;
+            document.querySelector('#modalAvatarClick > div:first-child').outerHTML = avatarEl({ avatar: newAvatarData, username: currentUser.username }, 72, '1.5rem');
+        };
+        reader.readAsDataURL(file);
+    });
+
+    document.getElementById('btnCancelEdit').addEventListener('click', () => modal.remove());
+    document.getElementById('btnSaveProfile').addEventListener('click', () => {
+        const newUsername = document.getElementById('editUsername').value.trim();
+        const newBio = document.getElementById('editBio').value.trim();
+        const errEl = document.getElementById('editProfileError');
+
+        if (newUsername.length < 3) {
+            errEl.textContent = 'Username must be at least 3 characters.';
+            errEl.style.display = 'block'; return;
+        }
+
+        // Remember old username BEFORE any changes
+        const oldUsername = currentUser.username;
+
+        // Check uniqueness only if username actually changed
+        let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+        if (newUsername.toLowerCase() !== oldUsername.toLowerCase()) {
+            if (users.find(u => u.username.toLowerCase() === newUsername.toLowerCase())) {
+                errEl.textContent = 'That username is already taken.';
+                errEl.style.display = 'block'; return;
+            }
+        }
+
+        // Find user by OLD username in the array
+        const idx = users.findIndex(u => u.username.toLowerCase() === oldUsername.toLowerCase());
+        if (idx < 0) {
+            errEl.textContent = 'Account not found — try logging out and back in.';
+            errEl.style.display = 'block'; return;
+        }
+
+        // Apply updates
+        users[idx].username = newUsername;
+        users[idx].avatar   = newAvatarData;
+        users[idx].bio      = newBio;
+
+        localStorage.setItem('spc_users', JSON.stringify(users));
+
+        // Update currentUser in memory and session
+        currentUser.username = newUsername;
+        currentUser.avatar   = newAvatarData;
+        currentUser.bio      = newBio;
+        localStorage.setItem('spc_current_user', JSON.stringify(currentUser));
+
+        // Broadcast profile to open P2P connections
+        Object.values(activeConns).forEach(c => {
+            if (c.open) c.send({ type: 'profile', username: newUsername, avatar: newAvatarData, bio: newBio });
+        });
+
+        updateAuthUI();
+        renderMyProfileCard();
+        modal.remove();
+        showNotification('Profile saved!', 'success');
+    });
+}
+
+// ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
+function showAdminPanel() {
+    if (!isAdmin(currentUser)) return;
+
+    let modal = document.getElementById('adminPanelModal');
+    if (modal) modal.remove();
+
+    const users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+    // Connected peers + current user are all "online"
+    const onlinePeerIds = Object.keys(activeConns);
+    const onlineUsernames = [
+        currentUser.username, // always online (it's us)
+        ...onlinePeerIds.map(pid => peerIdToUsername(pid))
+    ];
+
+    modal = document.createElement('div');
+    modal.id = 'adminPanelModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    const userRows = users.map((u, i) => {
+        const isOnline = onlineUsernames.some(o => o.toLowerCase() === u.username.toLowerCase());
+        const isSelf = u.username.toLowerCase() === currentUser.username.toLowerCase();
+        return `
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.65rem 0.75rem;display:flex;align-items:center;gap:0.6rem;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${isOnline ? '#22c55e' : '#64748b'};display:inline-block;flex-shrink:0;"></span>
+                    ${avatarEl({ username: u.username, avatar: u.avatar }, 28, '0.6rem')}
+                    <span style="font-weight:600;font-size:0.88rem;">${escapeHTML(u.username)}</span>
+                    ${u.isAdmin ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:0.55rem;font-weight:800;padding:1px 4px;border-radius:3px;">ADMIN</span>' : ''}
+                    ${isSelf ? '<span style="color:var(--text-muted);font-size:0.72rem;">(you)</span>' : ''}
+                </td>
+                <td style="padding:0.65rem 0.75rem;font-size:0.82rem;color:var(--text-muted);font-family:monospace;">${escapeHTML(u.password)}</td>
+                <td style="padding:0.65rem 0.75rem;font-size:0.8rem;color:${isOnline ? '#22c55e' : 'var(--text-muted)'};">${isOnline ? '● Online' : '○ Offline'}</td>
+                <td style="padding:0.65rem 0.75rem;">
+                    ${!isSelf ? `
+                        <div style="display:flex;gap:0.4rem;">
+                            ${isOnline ? `<button class="admin-kick-btn btn btn-secondary" data-username="${escapeHTML(u.username)}" style="padding:0.25rem 0.6rem;font-size:0.75rem;color:#f97316;border-color:#f97316;" title="Disconnect from peer network">Kick</button>` : ''}
+                            <button class="admin-delete-btn btn btn-secondary" data-index="${i}" data-username="${escapeHTML(u.username)}" style="padding:0.25rem 0.6rem;font-size:0.75rem;color:var(--accent);border-color:var(--accent);" title="Delete account">Delete</button>
+                        </div>
+                    ` : '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:680px;max-width:98vw;max-height:90vh;display:flex;flex-direction:column;gap:1.25rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <div style="width:32px;height:32px;background:linear-gradient(135deg,#f59e0b,#ef4444);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;color:var(--text-main);letter-spacing:1px;">ADMIN PANEL</h3>
+                </div>
+                <button id="btnCloseAdmin" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.4rem;line-height:1;padding:4px;">✕</button>
+            </div>
+
+            <!-- Stats row -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">
+                <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius-md);padding:0.85rem;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--primary);">${users.length}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">Total Users</div>
+                </div>
+                <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-md);padding:0.85rem;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:800;color:#22c55e;">${onlineUsernames.length + 1}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">Online Now</div>
+                </div>
+                <div style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2);border-radius:var(--radius-md);padding:0.85rem;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--accent);">${users.length - onlineUsernames.length - 1}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">Offline</div>
+                </div>
+            </div>
+
+            <!-- User table -->
+            <div style="overflow-y:auto;max-height:380px;border:1px solid var(--border);border-radius:var(--radius-md);">
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead style="position:sticky;top:0;background:var(--bg-sidebar);z-index:1;">
+                        <tr>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">User</th>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Password</th>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Status</th>
+                            <th style="padding:0.6rem 0.75rem;text-align:left;font-size:0.72rem;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUserTableBody">${userRows}</tbody>
+                </table>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+                <button id="btnAdminRefresh" class="btn btn-secondary" style="font-size:0.85rem;">↻ Refresh</button>
+                <button id="btnCloseAdmin2" class="btn btn-primary" style="font-size:0.85rem;">Close</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close buttons
+    document.getElementById('btnCloseAdmin').addEventListener('click', () => modal.remove());
+    document.getElementById('btnCloseAdmin2').addEventListener('click', () => modal.remove());
+
+    // Refresh (re-open panel)
+    document.getElementById('btnAdminRefresh').addEventListener('click', () => { modal.remove(); showAdminPanel(); });
+
+    // Kick buttons — close the P2P data connection to that user
+    modal.querySelectorAll('.admin-kick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetUsername = btn.getAttribute('data-username');
+            const targetPeerId = usernameToPeerId(targetUsername);
+            const conn = activeConns[targetPeerId];
+            if (conn) {
+                // Send a kick signal then close
+                try { conn.send({ type: 'kicked', message: 'You have been disconnected by an admin.' }); } catch(e) {}
+                setTimeout(() => { try { conn.close(); } catch(e) {} }, 300);
+                delete activeConns[targetPeerId];
+            }
+            showNotification(`${targetUsername} has been kicked.`, 'info');
+            btn.textContent = 'Kicked';
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            // Refresh stats
+            setTimeout(() => { modal.remove(); showAdminPanel(); }, 800);
+        });
+    });
+
+    // Delete account buttons
+    modal.querySelectorAll('.admin-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetUsername = btn.getAttribute('data-username');
+            if (!confirm(`Delete account "${targetUsername}"? This cannot be undone.`)) return;
+            let users = JSON.parse(localStorage.getItem('spc_users') || '[]');
+            users = users.filter(u => u.username.toLowerCase() !== targetUsername.toLowerCase());
+            localStorage.setItem('spc_users', JSON.stringify(users));
+            // Also kick if online
+            const targetPeerId = usernameToPeerId(targetUsername);
+            const conn = activeConns[targetPeerId];
+            if (conn) {
+                try { conn.send({ type: 'kicked', message: 'Your account has been deleted by an admin.' }); } catch(e) {}
+                setTimeout(() => { try { conn.close(); } catch(e) {} delete activeConns[targetPeerId]; }, 300);
+            }
+            showNotification(`Account "${targetUsername}" deleted.`, 'success');
+            modal.remove();
+            showAdminPanel();
+        });
+    });
+}
+function addChatTab(chat) {
+    // chat = { type, id, name, members? }
+    const list = document.getElementById('activeChatsList');
+    if (!list) return;
+    if (!chatHistory[chat.id]) chatHistory[chat.id] = [];
+    refreshChatList();
+}
+
+function refreshChatList() {
+    const list = document.getElementById('activeChatsList');
+    if (!list) return;
+    const allChats = getAllChats();
+    if (allChats.length === 0) {
+        list.innerHTML = `<div style="padding:1.2rem 1rem;color:var(--text-muted);font-size:0.82rem;text-align:center;line-height:1.6;">No chats yet.<br>Type a username above to start,<br>or create a group chat.</div>`;
+        return;
+    }
+    list.innerHTML = allChats.map(chat => {
+        const msgs = chatHistory[chat.id] || [];
+        const last = msgs[msgs.length - 1];
+        const isActive = selectedChat && selectedChat.id === chat.id;
+        const isConnected = chat.type === 'dm' ? !!activeConns[usernameToPeerId(chat.name)] : true;
+        const dotColor = isConnected ? '#22c55e' : 'var(--text-muted)';
+        const avatarUser = chat.type === 'dm' ? { username: chat.name, avatar: getAvatarFor(chat.name) } : null;
+
+        return `
+            <div class="online-user-item ${isActive ? 'active' : ''}" data-chatid="${chat.id}" id="chattab-${chat.id}" style="cursor:pointer;gap:0.6rem;">
+                <div style="position:relative;flex-shrink:0;">
+                    ${chat.type === 'group'
+                        ? (chat.photo
+                            ? `<img src="${chat.photo}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`
+                            : `<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1rem;">👥</div>`)
+                        : avatarEl(avatarUser, 38, '0.8rem')
+                    }
+                    <span style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:${dotColor};border:2px solid var(--bg-sidebar);"></span>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.9rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(chat.name)}</div>
+                    <div style="font-size:0.73rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${last ? (last.sender === currentUser.username ? 'You: ' : '') + last.text.substring(0,28) : (chat.type === 'group' ? 'Group chat' : 'Click to chat')}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    list.querySelectorAll('.online-user-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const cid = item.getAttribute('data-chatid');
+            const chat = allChats.find(c => c.id === cid);
+            if (chat) openChat(chat);
+        });
+    });
+}
+
+function getAllChats() {
+    // Combine DM chats and group chats
+    const dms = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => {
+            // Determine the other username from the DM id
+            const parts = id.split('__');
+            const otherName = parts.find(p => p.toLowerCase() !== currentUser.username.toLowerCase()) || id;
+            return { type: 'dm', id, name: otherName };
+        });
+    const groups = Object.entries(groupChats).map(([gid, g]) => ({
+        type: 'group', id: gid, name: g.name, members: g.members
+    }));
+    return [...dms, ...groups];
+}
+
+function flashTab(chatId) {
+    const tab = document.getElementById('chattab-' + chatId);
+    if (tab) { tab.style.background = 'rgba(139,92,246,0.25)'; setTimeout(() => { tab.style.background = ''; }, 1800); }
+}
+
+// ─── OPEN CHAT ────────────────────────────────────────────────────────────────
+function openChat(chat) {
+    selectedChat = chat;
+    document.getElementById('chatEmptyState').style.display = 'none';
+    document.getElementById('chatActiveState').style.display = 'flex';
+
+    // Avatar in header
+    const avatarUser = chat.type === 'dm' ? { username: chat.name, avatar: getAvatarFor(chat.name) } : null;
+    const groupData = chat.type === 'group' ? (groupChats[chat.id] || chat) : null;
+    document.getElementById('activeChatAvatarWrap').innerHTML = chat.type === 'group'
+        ? (groupData && groupData.photo
+            ? `<img src="${groupData.photo}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;">`
+            : `<div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.3rem;">👥</div>`)
+        : avatarEl(avatarUser, 42, '1rem');
+
+    document.getElementById('activeUserName').textContent = chat.name;
+    document.getElementById('activeUserActivity').textContent = chat.type === 'group'
+        ? `${(groupData && groupData.members ? groupData.members.length : (chat.members||[]).length)} members`
+        : (activeConns[usernameToPeerId(chat.name)] ? '● Connected' : '○ Not connected');
+
+    // Call buttons
+    const btnCall = document.getElementById('btnCallUser');
+    const btnGroupCall = document.getElementById('btnGroupCallUser');
+    const btnGroupSettings = document.getElementById('btnGroupSettings');
+    const btnAddToCall = document.getElementById('btnAddToCall');
+
+    if (btnCall) btnCall.style.display = chat.type === 'dm' ? 'inline-flex' : 'none';
+    if (btnGroupCall) btnGroupCall.style.display = chat.type === 'group' ? 'inline-flex' : 'none';
+    if (btnGroupSettings) btnGroupSettings.style.display = chat.type === 'group' ? 'inline-flex' : 'none';
+    if (btnAddToCall) btnAddToCall.style.display = 'none'; // shown during active 1:1 call
+
+    refreshChatList();
+    renderMessages();
+}
+
+// ─── RENDER MESSAGES ──────────────────────────────────────────────────────────
+function renderMessages() {
+    const box = document.getElementById('chatMessages');
+    if (!box || !selectedChat) return;
+    const history = chatHistory[selectedChat.id] || [];
+    if (history.length === 0) {
+        box.innerHTML = `<div style="display:flex;flex:1;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.9rem;text-align:center;padding:2rem;">Start the conversation!<br><span style="font-size:1.5rem;margin-top:0.5rem;display:block;">👋</span></div>`;
+        return;
+    }
+    box.innerHTML = history.map(msg => {
+        if (msg.sender === 'System') return `<div style="text-align:center;color:var(--text-muted);font-size:0.78rem;padding:0.4rem;">${msg.text}</div>`;
+        const isSent = msg.sender.toLowerCase() === currentUser.username.toLowerCase();
+        const msgAvatar = { username: msg.sender, avatar: msg.avatarData || getAvatarFor(msg.sender) };
+        return `
+            <div style="display:flex;align-items:flex-end;gap:0.5rem;${isSent ? 'flex-direction:row-reverse;' : ''}">
+                <div style="flex-shrink:0;">${avatarEl(msgAvatar, 26, '0.6rem')}</div>
+                <div class="chat-bubble ${isSent ? 'sent' : 'received'}" style="max-width:60%;">
+                    ${selectedChat.type === 'group' && !isSent ? `<div style="font-weight:700;font-size:0.72rem;color:var(--primary);margin-bottom:0.15rem;">${escapeHTML(msg.sender)}</div>` : ''}
+                    <div>${msg.text}</div>
+                    <span class="timestamp">${msg.time}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+}
+
+function appendSystemMsg(text) {
+    if (selectedChat) {
+        if (!chatHistory[selectedChat.id]) chatHistory[selectedChat.id] = [];
+        chatHistory[selectedChat.id].push({ sender: 'System', text, time: now() });
+        saveChatHistory();
+        renderMessages();
+    }
+}
+
+// ─── BIND CHAT HANDLERS ───────────────────────────────────────────────────────
+function bindChatHandlers() {
+    // Start DM
+    const btnStart = document.getElementById('btnStartChat');
+    if (btnStart && !btnStart._bound) {
+        btnStart._bound = true;
+        const doStart = () => {
+            const input = document.getElementById('peerUsernameInput');
+            const target = input.value.trim();
+            if (!target) return;
+            if (target.toLowerCase() === currentUser.username.toLowerCase()) { showNotification("Can't chat with yourself", 'error'); return; }
+            input.value = '';
+            const statusEl = document.getElementById('peerConnectStatus');
+            statusEl.textContent = 'Connecting...';
+            const targetPeerId = usernameToPeerId(target);
+
+            // Always open/create the DM tab even if peer is unavailable
+            const cid = dmId(currentUser.username, target);
+            if (!chatHistory[cid]) chatHistory[cid] = [];
+            addChatTab({ type: 'dm', id: cid, name: target });
+            openChat({ type: 'dm', id: cid, name: target });
+
+            if (!peer || typeof peer.connect !== 'function') { statusEl.textContent = 'Not connected — refresh page.'; return; }
+
+            // Check if already connected
+            if (activeConns[targetPeerId] && activeConns[targetPeerId].open) {
+                statusEl.textContent = `Already connected to ${target}`;
+                setTimeout(() => statusEl.textContent = '', 3000);
+                return;
+            }
+
+            const conn = peer.connect(targetPeerId, { reliable: true, metadata: { username: currentUser.username } });
+            let connectTimeout = setTimeout(() => {
+                statusEl.textContent = `${target} appears offline — messages saved locally`;
+                setTimeout(() => statusEl.textContent = '', 5000);
+            }, 8000);
+
+            conn.on('open', () => {
+                clearTimeout(connectTimeout);
+                activeConns[targetPeerId] = conn;
+                conn.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                statusEl.textContent = `Connected to ${target}`;
+                refreshChatList();
+                setTimeout(() => statusEl.textContent = '', 3000);
+            });
+            conn.on('data', data => handleIncomingData(conn, data));
+            conn.on('close', () => { delete activeConns[targetPeerId]; refreshChatList(); showNotification(`${target} disconnected`, 'info'); });
+            conn.on('error', () => {
+                clearTimeout(connectTimeout);
+                statusEl.textContent = `${target} is not online`;
+                setTimeout(() => statusEl.textContent = '', 4000);
+            });
+        };
+        btnStart.addEventListener('click', doStart);
+        document.getElementById('peerUsernameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doStart(); } });
+    }
+
+    // Create group
+    const btnCreateGroup = document.getElementById('btnCreateGroup');
+    if (btnCreateGroup && !btnCreateGroup._bound) {
+        btnCreateGroup._bound = true;
+        btnCreateGroup.addEventListener('click', showCreateGroupModal);
+    }
+
+    // Emoji picker
+    const btnEmoji = document.getElementById('btnEmojiPicker');
+    const emojiPanel = document.getElementById('emojiPanel');
+    const emojiGrid = document.getElementById('emojiGrid');
+    if (btnEmoji && emojiPanel && emojiGrid && !btnEmoji._bound) {
+        btnEmoji._bound = true;
+        const EMOJIS = [
+            '😀','😂','🤣','😊','😍','🥰','😎','🤩','😜','😏',
+            '😢','😭','😤','😡','🤬','🤯','😱','🥳','🤔','🫡',
+            '👋','👍','👎','❤️','🔥','💯','✅','❌','🎮','🏆',
+            '💀','👀','🫶','🤝','💪','🙌','🎉','🎯','⚡','🌟',
+            '😴','🤢','🤮','🥴','🤧','🥺','😇','🤠','👻','💩',
+            '🐶','🐱','🐸','🦊','🐼','🦁','🐙','🦋','🌈','⭐',
+            '🍕','🍔','🍟','🌮','🍜','🧋','🍩','🎂','🍭','🍺',
+            '⚽','🏀','🎾','🎮','🕹️','🎲','🎸','🎵','🎤','📱'
+        ];
+        emojiGrid.innerHTML = EMOJIS.map(e =>
+            `<button type="button" class="emoji-btn" style="background:none;border:none;cursor:pointer;font-size:1.3rem;padding:0.2rem;border-radius:6px;transition:0.15s;line-height:1.3;" onmouseover="this.style.background='rgba(139,92,246,0.15)'" onmouseout="this.style.background='none'">${e}</button>`
+        ).join('');
+
+        btnEmoji.addEventListener('click', e => {
+            e.stopPropagation();
+            emojiPanel.style.display = emojiPanel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        emojiGrid.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const input = document.getElementById('chatInput');
+                const pos = input.selectionStart || input.value.length;
+                input.value = input.value.slice(0, pos) + btn.textContent + input.value.slice(pos);
+                input.focus();
+                input.setSelectionRange(pos + btn.textContent.length, pos + btn.textContent.length);
+                emojiPanel.style.display = 'none';
+            });
+        });
+
+        document.addEventListener('click', e => {
+            if (!btnEmoji.contains(e.target) && !emojiPanel.contains(e.target)) {
+                emojiPanel.style.display = 'none';
+            }
+        });
+    }
+
+    // Send message
+    const chatForm = document.getElementById('chatForm');
+    if (chatForm && !chatForm._bound) {
+        chatForm._bound = true;
+        chatForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || !selectedChat) return;
+            const msg = { sender: currentUser.username, text: escapeHTML(text), time: now(), avatarData: currentUser.avatar };
+            if (!chatHistory[selectedChat.id]) chatHistory[selectedChat.id] = [];
+            chatHistory[selectedChat.id].push(msg);
+            saveChatHistory();
+            renderMessages();
+            refreshChatList();
+            input.value = '';
+            // Send over P2P
+            if (selectedChat.type === 'dm') {
+                const targetPeerId = usernameToPeerId(selectedChat.name);
+                const conn = activeConns[targetPeerId];
+                if (conn && conn.open) {
+                    conn.send({ type: 'message', text, avatarData: currentUser.avatar });
+                } else {
+                    // Try to reconnect silently then send
+                    if (peer && typeof peer.connect === 'function') {
+                        const retryConn = peer.connect(targetPeerId, { reliable: true, metadata: { username: currentUser.username } });
+                        retryConn.on('open', () => {
+                            activeConns[targetPeerId] = retryConn;
+                            retryConn.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                            retryConn.send({ type: 'message', text, avatarData: currentUser.avatar });
+                            retryConn.on('data', data => handleIncomingData(retryConn, data));
+                            retryConn.on('close', () => { delete activeConns[targetPeerId]; refreshChatList(); });
+                            refreshChatList();
+                        });
+                        retryConn.on('error', () => {
+                            showNotification(`${selectedChat.name} is offline — message saved locally`, 'info');
+                        });
+                    } else {
+                        showNotification('Message saved locally — not connected', 'info');
+                    }
+                }
+            } else {
+                // Group: broadcast to all members who are connected
+                const group = groupChats[selectedChat.id];
+                if (group) {
+                    group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase()).forEach(m => {
+                        const conn = activeConns[usernameToPeerId(m)];
+                        if (conn && conn.open) conn.send({ type: 'group_message', groupId: selectedChat.id, groupName: selectedChat.name, text, avatarData: currentUser.avatar });
+                    });
+                }
+            }
+        });
+    }
+}
+
+// ─── GROUP CHAT ───────────────────────────────────────────────────────────────
+function showCreateGroupModal() {
+    let modal = document.getElementById('createGroupModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'createGroupModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(12px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    // Get existing DM contacts as quick-add chips
+    const dmContacts = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase()))
+        .filter(Boolean);
+
+    const chipHTML = dmContacts.length > 0
+        ? `<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.4rem;" id="contactChips">
+            ${dmContacts.map(u => `
+                <button type="button" class="contact-chip" data-username="${escapeHTML(u)}"
+                    style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.7rem;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius-full);cursor:pointer;font-size:0.8rem;color:var(--text-muted);transition:0.2s;">
+                    ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 20, '0.5rem')}
+                    ${escapeHTML(u)}
+                </button>
+            `).join('')}
+           </div>`
+        : '';
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;width:420px;max-width:97vw;max-height:92vh;overflow-y:auto;">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;margin-bottom:1.5rem;color:var(--text-main);letter-spacing:1px;">CREATE GROUP CHAT</h3>
+            <div style="display:flex;flex-direction:column;gap:1.1rem;">
+
+                <!-- Group photo + name row -->
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="position:relative;cursor:pointer;flex-shrink:0;" id="groupPhotoClick" title="Set group photo">
+                        <div id="groupPhotoPreview" style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">👥</div>
+                        <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-card);">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                        <input type="file" id="groupPhotoFile" accept="image/*" style="display:none;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Group Name</label>
+                        <input id="groupNameInput" type="text" placeholder="e.g. Slope Squad" maxlength="30"
+                            style="width:100%;padding:0.6rem 0.9rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;font-size:0.9rem;">
+                    </div>
+                </div>
+
+                <!-- Members from existing chats -->
+                ${dmContacts.length > 0 ? `
+                <div>
+                    <label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Add from your chats</label>
+                    ${chipHTML}
+                </div>` : ''}
+
+                <!-- Manual username entry -->
+                <div>
+                    <label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Or type usernames</label>
+                    <input id="groupMembersInput" type="text" placeholder="e.g. alex, jordan"
+                        style="width:100%;padding:0.6rem 0.9rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;font-size:0.9rem;">
+                    <p style="font-size:0.73rem;color:var(--text-muted);margin-top:0.3rem;">Comma-separated. Chips above auto-fill this.</p>
+                </div>
+
+                <!-- Selected members preview -->
+                <div id="selectedMembersPreview" style="display:none;flex-wrap:wrap;gap:0.4rem;padding:0.6rem;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius-md);"></div>
+
+                <div id="createGroupError" style="color:var(--accent);font-size:0.85rem;display:none;"></div>
+
+                <div style="display:flex;gap:0.75rem;margin-top:0.25rem;">
+                    <button id="btnCancelGroup" class="btn btn-secondary" style="flex:1;justify-content:center;">Cancel</button>
+                    <button id="btnConfirmGroup" class="btn btn-primary" style="flex:1;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Create Group
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    let groupPhotoData = null;
+    let chipSelected = new Set();
+
+    // Group photo upload
+    document.getElementById('groupPhotoClick').addEventListener('click', () => document.getElementById('groupPhotoFile').click());
+    document.getElementById('groupPhotoFile').addEventListener('change', e => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            groupPhotoData = ev.target.result;
+            document.getElementById('groupPhotoPreview').innerHTML = `<img src="${groupPhotoData}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Contact chip toggle
+    modal.querySelectorAll('.contact-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const uname = chip.getAttribute('data-username');
+            if (chipSelected.has(uname)) {
+                chipSelected.delete(uname);
+                chip.style.background = 'rgba(255,255,255,0.06)';
+                chip.style.borderColor = 'var(--border)';
+                chip.style.color = 'var(--text-muted)';
+            } else {
+                chipSelected.add(uname);
+                chip.style.background = 'rgba(139,92,246,0.2)';
+                chip.style.borderColor = 'var(--primary)';
+                chip.style.color = 'white';
+            }
+            updateMemberInput();
+        });
+    });
+
+    function updateMemberInput() {
+        const manual = document.getElementById('groupMembersInput').value
+            .split(',').map(s => s.trim()).filter(s => s && !chipSelected.has(s));
+        const all = [...chipSelected, ...manual];
+        document.getElementById('groupMembersInput').value = all.join(', ');
+
+        const preview = document.getElementById('selectedMembersPreview');
+        if (all.length > 0) {
+            preview.style.display = 'flex';
+            preview.innerHTML = all.map(u => `
+                <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-full);font-size:0.78rem;color:var(--text-main);">
+                    ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 16, '0.4rem')} ${escapeHTML(u)}
+                </span>`).join('');
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+    document.getElementById('groupMembersInput').addEventListener('input', updateMemberInput);
+
+    document.getElementById('btnCancelGroup').addEventListener('click', () => modal.remove());
+    document.getElementById('btnConfirmGroup').addEventListener('click', () => {
+        const name = document.getElementById('groupNameInput').value.trim();
+        const membersRaw = document.getElementById('groupMembersInput').value;
+        if (!name) {
+            document.getElementById('createGroupError').textContent = 'Enter a group name.';
+            document.getElementById('createGroupError').style.display = 'block'; return;
+        }
+        const parsedMembers = membersRaw.split(',').map(m => m.trim()).filter(m => m && m.toLowerCase() !== currentUser.username.toLowerCase());
+        const members = [currentUser.username, ...parsedMembers];
+        const gid = groupId(name) + '-' + Date.now();
+        groupChats[gid] = { name, members, photo: groupPhotoData, admin: currentUser.username };
+        localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+        if (!chatHistory[gid]) chatHistory[gid] = [];
+        // Invite all members
+        parsedMembers.forEach(m => {
+            const conn = activeConns[usernameToPeerId(m)];
+            if (conn && conn.open) {
+                conn.send({ type: 'group_invite', groupId: gid, groupName: name, members, photo: groupPhotoData, admin: currentUser.username });
+            } else if (peer && !peer.destroyed) {
+                const c = peer.connect(usernameToPeerId(m), { reliable: true });
+                c.on('open', () => {
+                    activeConns[usernameToPeerId(m)] = c;
+                    c.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                    c.send({ type: 'group_invite', groupId: gid, groupName: name, members, photo: groupPhotoData, admin: currentUser.username });
+                    c.on('data', data => handleIncomingData(c, data));
+                });
+            }
+        });
+        addChatTab({ type: 'group', id: gid, name, members, photo: groupPhotoData, admin: currentUser.username });
+        openChat({ type: 'group', id: gid, name, members, photo: groupPhotoData, admin: currentUser.username });
+        modal.remove();
+        showNotification(`Group "${name}" created!`, 'success');
+    });
+}
+
+// ─── VOICE CALL (1:1) ─────────────────────────────────────────────────────────
+let callDurationSeconds = 0;
+let callTimerInterval = null;
+
+function bindCallHandlers() {
+    // 1:1 Call
+    const btnCall = document.getElementById('btnCallUser');
+    if (btnCall && !btnCall._bound) {
+        btnCall._bound = true;
+        btnCall.addEventListener('click', async () => {
+            if (!selectedChat || selectedChat.type !== 'dm') return;
+            if (selectedChat.name.toLowerCase() === currentUser.username.toLowerCase()) {
+                showNotification("You can't call yourself!", 'error'); return;
+            }
+            if (!peer || typeof peer.call !== 'function') { showNotification('Not connected — try refreshing the page', 'error'); return; }
+            const overlay = document.getElementById('callOverlay');
+            const targetName = selectedChat.name;
+            overlay.style.display = 'flex';
+            document.getElementById('callUserName').textContent = targetName;
+            const callAvatarWrap = document.getElementById('callAvatarWrap');
+            if (callAvatarWrap) callAvatarWrap.innerHTML = avatarEl({ username: targetName, avatar: getAvatarFor(targetName) }, 120, '2.8rem');
+            setCallStatus('ringing');
+            document.getElementById('callVisualizer').style.display = 'none';
+            callDurationSeconds = 0;
+            document.getElementById('btnCallMute').classList.remove('active');
+            document.getElementById('btnCallMute').style.background = 'rgba(255,255,255,0.08)';
+            try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+            catch { overlay.style.display = 'none'; showNotification('Mic permission denied', 'error'); return; }
+            playSyntheticRing();
+            const call = peer.call(usernameToPeerId(targetName), localStream);
+            activeCall = call;
+            call.on('stream', remoteStream => {
+                stopSyntheticRing(); playConnectChime();
+                setCallStatus('connected');
+                document.getElementById('callVisualizer').style.display = 'flex';
+                const audio = document.getElementById('remoteAudio');
+                if (audio) { audio.srcObject = remoteStream; audio.play().catch(()=>{}); }
+                startCallTimer();
+                // Show "Add to call" button once connected
+                const btnAddToCall = document.getElementById('btnAddToCall');
+                if (btnAddToCall) btnAddToCall.style.display = 'inline-flex';
+            });
+            call.on('close', () => hangUpCall('Call ended'));
+            call.on('error', () => { stopSyntheticRing(); overlay.style.display = 'none'; showNotification(`${targetName} unavailable`, 'error'); cleanupLocalStream(); });
+            setTimeout(() => {
+                if (document.getElementById('callStatus').dataset.state === 'ringing') hangUpCall('No answer');
+            }, 25000);
+        });
+    }
+
+    // Group Call
+    const btnGroupCall = document.getElementById('btnGroupCallUser');
+    if (btnGroupCall && !btnGroupCall._bound) {
+        btnGroupCall._bound = true;
+        btnGroupCall.addEventListener('click', startGroupCall);
+    }
+
+    // Group Settings
+    const btnGroupSettings = document.getElementById('btnGroupSettings');
+    if (btnGroupSettings && !btnGroupSettings._bound) {
+        btnGroupSettings._bound = true;
+        btnGroupSettings.addEventListener('click', () => {
+            if (selectedChat && selectedChat.type === 'group') showGroupSettingsModal(selectedChat.id);
+        });
+    }
+
+    // Add to call (during 1:1 call → escalate to group call)
+    const btnAddToCall = document.getElementById('btnAddToCall');
+    if (btnAddToCall && !btnAddToCall._bound) {
+        btnAddToCall._bound = true;
+        btnAddToCall.addEventListener('click', showAddToCallModal);
+    }
+
+    // Hang up
+    const hangUpBtn = document.getElementById('btnCallDecline');
+    if (hangUpBtn && !hangUpBtn._bound) {
+        hangUpBtn._bound = true;
+        hangUpBtn.addEventListener('click', () => hangUpCall('Call ended'));
+    }
+
+    // Mute
+    const muteBtn = document.getElementById('btnCallMute');
+    if (muteBtn && !muteBtn._bound) {
+        muteBtn._bound = true;
+        muteBtn.addEventListener('click', () => {
+            muteBtn.classList.toggle('active');
+            if (localStream) localStream.getAudioTracks().forEach(t => { t.enabled = !muteBtn.classList.contains('active'); });
+            muteBtn.style.background = muteBtn.classList.contains('active') ? 'rgba(244,63,94,0.25)' : 'rgba(255,255,255,0.08)';
+            showNotification(muteBtn.classList.contains('active') ? 'Muted' : 'Unmuted', 'info');
+        });
+    }
+
+    // Accept / Decline incoming
+    const acceptBtn = document.getElementById('btnAcceptCall');
+    if (acceptBtn && !acceptBtn._boundAccept) {
+        acceptBtn._boundAccept = true;
+        acceptBtn.addEventListener('click', () => window._pendingCallAccept && window._pendingCallAccept());
+    }
+    const declineBtn = document.getElementById('btnDeclineCall');
+    if (declineBtn && !declineBtn._boundDecline) {
+        declineBtn._boundDecline = true;
+        declineBtn.addEventListener('click', () => window._pendingCallDecline && window._pendingCallDecline());
+    }
+}
+
+// ─── ADD PERSON TO ACTIVE 1:1 CALL ───────────────────────────────────────────
+function showAddToCallModal() {
+    let modal = document.getElementById('addToCallModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'addToCallModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(12px);z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    // Get existing contacts to show as chips
+    const dmContacts = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase()))
+        .filter(Boolean)
+        .filter(u => selectedChat && u.toLowerCase() !== selectedChat.name.toLowerCase()); // exclude person already in call
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:380px;max-width:96vw;">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;margin-bottom:0.4rem;color:var(--text-main);letter-spacing:1px;">ADD TO CALL</h3>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1.25rem;">This will add someone else to the current call (like a WhatsApp group call).</p>
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+                ${dmContacts.length > 0 ? `
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">From your chats</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;" id="addCallChips">
+                        ${dmContacts.map(u => `
+                            <button type="button" class="addcall-chip" data-username="${escapeHTML(u)}"
+                                style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0.7rem;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius-full);cursor:pointer;font-size:0.8rem;color:var(--text-muted);transition:0.2s;">
+                                ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 20, '0.5rem')} ${escapeHTML(u)}
+                            </button>`).join('')}
+                    </div>
+                </div>` : ''}
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Or type a username</label>
+                    <input id="addCallInput" type="text" placeholder="Username..."
+                        style="width:100%;padding:0.6rem 0.9rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;">
+                </div>
+                <div style="display:flex;gap:0.75rem;margin-top:0.25rem;">
+                    <button id="btnCancelAddCall" class="btn btn-secondary" style="flex:1;justify-content:center;">Cancel</button>
+                    <button id="btnConfirmAddCall" class="btn btn-primary" style="flex:1;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/><path d="M1 1l22 22"/></svg>
+                        Add to Call
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    let chipTarget = null;
+
+    modal.querySelectorAll('.addcall-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            modal.querySelectorAll('.addcall-chip').forEach(c => {
+                c.style.background = 'rgba(255,255,255,0.06)';
+                c.style.borderColor = 'var(--border)';
+                c.style.color = 'var(--text-muted)';
+            });
+            chipTarget = chip.getAttribute('data-username');
+            chip.style.background = 'rgba(139,92,246,0.2)';
+            chip.style.borderColor = 'var(--primary)';
+            chip.style.color = 'white';
+            document.getElementById('addCallInput').value = chipTarget;
+        });
+    });
+
+    document.getElementById('btnCancelAddCall').addEventListener('click', () => modal.remove());
+    document.getElementById('btnConfirmAddCall').addEventListener('click', async () => {
+        const target = (document.getElementById('addCallInput').value.trim()) || chipTarget;
+        if (!target) { showNotification('Enter a username', 'error'); return; }
+        modal.remove();
+        // Add the new person to the call as a group call participant
+        if (!localStream) {
+            try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+            catch { showNotification('Mic permission denied', 'error'); return; }
+        }
+        const targetPeerId = usernameToPeerId(target);
+        const newCall = peer.call(targetPeerId, localStream, { metadata: { groupId: 'adhoc-call', groupName: 'Call' } });
+        groupCallConns[targetPeerId] = newCall;
+        newCall.on('stream', remoteStream => {
+            addGroupCallAudioStream(target, remoteStream);
+            showNotification(`${target} joined the call`, 'success');
+            // Update call overlay to show both participants
+            document.getElementById('callUserName').textContent = `${selectedChat.name}, ${target}`;
+        });
+        newCall.on('close', () => { removeGroupCallAudio(target); delete groupCallConns[targetPeerId]; });
+        showNotification(`Calling ${target}...`, 'info');
+    });
+}
+
+// ─── GROUP SETTINGS MODAL ─────────────────────────────────────────────────────
+function showGroupSettingsModal(gid) {
+    const group = groupChats[gid];
+    if (!group) return;
+    const isGroupAdmin = group.admin && group.admin.toLowerCase() === currentUser.username.toLowerCase();
+
+    let modal = document.getElementById('groupSettingsModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'groupSettingsModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(12px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;`;
+
+    const dmContacts = Object.keys(chatHistory)
+        .filter(id => !id.startsWith('grp__'))
+        .map(id => id.split('__').find(p => p.toLowerCase() !== currentUser.username.toLowerCase()))
+        .filter(Boolean)
+        .filter(u => !group.members.map(m => m.toLowerCase()).includes(u.toLowerCase()));
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;width:420px;max-width:97vw;max-height:92vh;overflow-y:auto;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+                <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;color:var(--text-main);letter-spacing:1px;">GROUP SETTINGS</h3>
+                <button id="btnCloseGroupSettings" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem;line-height:1;">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1.2rem;">
+
+                <!-- Photo + name -->
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="position:relative;flex-shrink:0;${isGroupAdmin ? 'cursor:pointer;' : ''}" id="gsPhotoClick">
+                        <div id="gsPhotoPreview">
+                            ${group.photo
+                                ? `<img src="${group.photo}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`
+                                : `<div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">👥</div>`}
+                        </div>
+                        ${isGroupAdmin ? `
+                        <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-card);">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                        <input type="file" id="gsPhotoFile" accept="image/*" style="display:none;">` : ''}
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.35rem;display:block;">Group Name</label>
+                        <input id="gsNameInput" type="text" value="${escapeHTML(group.name)}" maxlength="30" ${!isGroupAdmin ? 'disabled' : ''}
+                            style="width:100%;padding:0.6rem 0.9rem;background:${isGroupAdmin ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'};border:1px solid var(--border);border-radius:var(--radius-md);color:${isGroupAdmin ? 'white' : 'var(--text-muted)'};outline:none;">
+                    </div>
+                </div>
+
+                <!-- Members list -->
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;display:block;">Members (${group.members.length})</label>
+                    <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:160px;overflow-y:auto;padding-right:0.25rem;" id="gsMemberList">
+                        ${group.members.map(m => {
+                            const isMe = m.toLowerCase() === currentUser.username.toLowerCase();
+                            const isAdmin_ = group.admin && group.admin.toLowerCase() === m.toLowerCase();
+                            return `
+                            <div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.6rem;border-radius:var(--radius-md);background:rgba(255,255,255,0.03);">
+                                ${avatarEl({ username: m, avatar: isMe ? currentUser.avatar : getAvatarFor(m) }, 28, '0.6rem')}
+                                <span style="flex:1;font-size:0.88rem;font-weight:600;">${escapeHTML(m)}${isMe ? ' <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">(you)</span>' : ''}</span>
+                                ${isAdmin_ ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:3px;">ADMIN</span>' : ''}
+                                ${isGroupAdmin && !isMe ? `<button class="gs-remove-member" data-member="${escapeHTML(m)}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;transition:0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- Add members (admin only) -->
+                ${isGroupAdmin ? `
+                <div>
+                    <label style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.4rem;display:block;">Add Members</label>
+                    ${dmContacts.length > 0 ? `
+                    <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem;" id="gsAddChips">
+                        ${dmContacts.map(u => `
+                            <button type="button" class="gs-add-chip" data-username="${escapeHTML(u)}"
+                                style="display:flex;align-items:center;gap:0.35rem;padding:0.25rem 0.6rem;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius-full);cursor:pointer;font-size:0.78rem;color:var(--text-muted);transition:0.2s;">
+                                ${avatarEl({ username: u, avatar: getAvatarFor(u) }, 18, '0.45rem')} ${escapeHTML(u)}
+                            </button>`).join('')}
+                    </div>` : ''}
+                    <div style="display:flex;gap:0.5rem;">
+                        <input id="gsAddMemberInput" type="text" placeholder="Or type username..."
+                            style="flex:1;padding:0.55rem 0.85rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);color:white;outline:none;font-size:0.85rem;">
+                        <button id="btnGsAddMember" class="btn btn-secondary" style="padding:0.55rem 0.85rem;font-size:0.82rem;">Add</button>
+                    </div>
+                </div>` : ''}
+
+                <div id="gsError" style="color:var(--accent);font-size:0.82rem;display:none;"></div>
+
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                    ${isGroupAdmin ? `
+                    <button id="btnGsSave" class="btn btn-primary" style="flex:1;justify-content:center;min-width:120px;">Save Changes</button>
+                    <button id="btnGsDelete" class="btn btn-secondary" style="padding:0.55rem 1rem;font-size:0.82rem;color:var(--accent);border-color:var(--accent);">Delete Group</button>
+                    ` : `
+                    <button id="btnGsLeave" class="btn btn-secondary" style="flex:1;justify-content:center;color:var(--accent);border-color:var(--accent);">Leave Group</button>
+                    `}
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    let newPhotoData = group.photo || null;
+    let toAdd = new Set();
+
+    document.getElementById('btnCloseGroupSettings').addEventListener('click', () => modal.remove());
+
+    // Photo change (admin only)
+    if (isGroupAdmin) {
+        const gsPhotoClick = document.getElementById('gsPhotoClick');
+        const gsPhotoFile = document.getElementById('gsPhotoFile');
+        if (gsPhotoClick && gsPhotoFile) {
+            gsPhotoClick.addEventListener('click', () => gsPhotoFile.click());
+            gsPhotoFile.addEventListener('change', e => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    newPhotoData = ev.target.result;
+                    document.getElementById('gsPhotoPreview').innerHTML = `<img src="${newPhotoData}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Add chips
+        modal.querySelectorAll('.gs-add-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const u = chip.getAttribute('data-username');
+                if (toAdd.has(u)) {
+                    toAdd.delete(u);
+                    chip.style.background = 'rgba(255,255,255,0.06)';
+                    chip.style.borderColor = 'var(--border)';
+                    chip.style.color = 'var(--text-muted)';
+                } else {
+                    toAdd.add(u);
+                    chip.style.background = 'rgba(139,92,246,0.2)';
+                    chip.style.borderColor = 'var(--primary)';
+                    chip.style.color = 'white';
+                }
+            });
+        });
+
+        // Add member button
+        document.getElementById('btnGsAddMember').addEventListener('click', () => {
+            const inp = document.getElementById('gsAddMemberInput');
+            const u = inp.value.trim();
+            if (u) { toAdd.add(u); inp.value = ''; showNotification(`${u} will be added on save`, 'info'); }
+        });
+
+        // Remove member buttons
+        modal.querySelectorAll('.gs-remove-member').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const m = btn.getAttribute('data-member');
+                group.members = group.members.filter(x => x.toLowerCase() !== m.toLowerCase());
+                // Broadcast removal
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) conn.send({ type: 'group_update', groupId: gid, action: 'remove', members: group.members, name: group.name, photo: newPhotoData });
+                groupChats[gid] = group;
+                localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+                btn.closest('div').remove();
+                showNotification(`${m} removed from group`, 'info');
+            });
+        });
+
+        // Save
+        document.getElementById('btnGsSave').addEventListener('click', () => {
+            const newName = document.getElementById('gsNameInput').value.trim();
+            if (!newName) { document.getElementById('gsError').textContent = 'Name cannot be empty.'; document.getElementById('gsError').style.display = 'block'; return; }
+            const newMembers = [...toAdd].filter(u => !group.members.map(m => m.toLowerCase()).includes(u.toLowerCase()));
+            group.name = newName;
+            group.photo = newPhotoData;
+            group.members = [...group.members, ...newMembers];
+            groupChats[gid] = group;
+            localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            // Broadcast update + invite new members
+            group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase()).forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) {
+                    conn.send({ type: 'group_update', groupId: gid, action: 'update', members: group.members, name: newName, photo: newPhotoData, admin: group.admin });
+                }
+            });
+            newMembers.forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) {
+                    conn.send({ type: 'group_invite', groupId: gid, groupName: newName, members: group.members, photo: newPhotoData, admin: group.admin });
+                } else if (peer && !peer.destroyed) {
+                    const c = peer.connect(usernameToPeerId(m), { reliable: true });
+                    c.on('open', () => {
+                        activeConns[usernameToPeerId(m)] = c;
+                        c.send({ type: 'profile', username: currentUser.username, avatar: currentUser.avatar, bio: currentUser.bio });
+                        c.send({ type: 'group_invite', groupId: gid, groupName: newName, members: group.members, photo: newPhotoData, admin: group.admin });
+                        c.on('data', data => handleIncomingData(c, data));
+                    });
+                }
+            });
+            // Update header if this group is open
+            if (selectedChat && selectedChat.id === gid) {
+                selectedChat.name = newName;
+                selectedChat.photo = newPhotoData;
+                selectedChat.members = group.members;
+                openChat(selectedChat);
+            }
+            refreshChatList();
+            modal.remove();
+            showNotification('Group updated!', 'success');
+        });
+
+        // Delete group
+        document.getElementById('btnGsDelete').addEventListener('click', () => {
+            if (!confirm(`Delete "${group.name}"? Everyone loses this chat.`)) return;
+            // Notify members
+            group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase()).forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) conn.send({ type: 'group_update', groupId: gid, action: 'delete', name: group.name });
+            });
+            delete groupChats[gid];
+            delete chatHistory[gid];
+            localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            saveChatHistory();
+            selectedChat = null;
+            document.getElementById('chatEmptyState').style.display = 'flex';
+            document.getElementById('chatActiveState').style.display = 'none';
+            refreshChatList();
+            modal.remove();
+            showNotification(`Group "${group.name}" deleted.`, 'info');
+        });
+    } else {
+        // Non-admin: leave group
+        document.getElementById('btnGsLeave').addEventListener('click', () => {
+            group.members = group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase());
+            // Tell admin/others
+            group.members.forEach(m => {
+                const conn = activeConns[usernameToPeerId(m)];
+                if (conn && conn.open) conn.send({ type: 'group_update', groupId: gid, action: 'update', members: group.members, name: group.name, photo: newPhotoData, admin: group.admin });
+            });
+            delete groupChats[gid];
+            delete chatHistory[gid];
+            localStorage.setItem('spc_groups', JSON.stringify(groupChats));
+            saveChatHistory();
+            selectedChat = null;
+            document.getElementById('chatEmptyState').style.display = 'flex';
+            document.getElementById('chatActiveState').style.display = 'none';
+            refreshChatList();
+            modal.remove();
+            showNotification('You left the group.', 'info');
+        });
+    }
+}
+
+function setCallStatus(state) {
+    const el = document.getElementById('callStatus');
+    if (!el) return;
+    el.dataset.state = state;
+    el.innerHTML = state === 'ringing'
+        ? `<span style="display:inline-flex;align-items:center;gap:0.5rem;"><span style="display:inline-block;width:8px;height:8px;background:#eab308;border-radius:50%;"></span>Ringing...</span>`
+        : `<span style="display:inline-flex;align-items:center;gap:0.5rem;"><span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:50%;"></span><span id="callDuration">Connected (00:00)</span></span>`;
+}
+
+function startCallTimer() {
+    callDurationSeconds = 0;
+    if (callTimerInterval) clearInterval(callTimerInterval);
+    callTimerInterval = setInterval(() => {
+        callDurationSeconds++;
+        const m = String(Math.floor(callDurationSeconds/60)).padStart(2,'0');
+        const s = String(callDurationSeconds%60).padStart(2,'0');
+        const el = document.getElementById('callDuration');
+        if (el) el.textContent = `Connected (${m}:${s})`;
+    }, 1000);
+}
+
+function showIncomingCallUI(callerName, call) {
+    const overlay = document.getElementById('incomingCallOverlay');
+    if (!overlay) return;
+    document.getElementById('incomingCallName').textContent = callerName;
+    const inAvWrap = document.getElementById('incomingCallAvatarWrap');
+    if (inAvWrap) inAvWrap.innerHTML = avatarEl({ username: callerName, avatar: getAvatarFor(callerName) }, 120, '2.8rem');
+    overlay.style.display = 'flex';
+    playSyntheticRing();
+
+    window._pendingCallAccept = async () => {
+        stopSyntheticRing();
+        overlay.style.display = 'none';
+        window._pendingCallAccept = null; window._pendingCallDecline = null;
+        try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+        catch { showNotification('Mic denied', 'error'); return; }
+        call.answer(localStream);
+        activeCall = call;
+        const callOverlay = document.getElementById('callOverlay');
+        callOverlay.style.display = 'flex';
+        document.getElementById('callUserName').textContent = callerName;
+        const callAvatarWrap = document.getElementById('callAvatarWrap');
+        if (callAvatarWrap) callAvatarWrap.innerHTML = avatarEl({ username: callerName, avatar: getAvatarFor(callerName) }, 120, '2.8rem');
+        setCallStatus('connected');
+        document.getElementById('callVisualizer').style.display = 'flex';
+        playConnectChime();
+        startCallTimer();
+        call.on('stream', remoteStream => {
+            const audio = document.getElementById('remoteAudio');
+            if (audio) { audio.srcObject = remoteStream; audio.play().catch(()=>{}); }
+        });
+        call.on('close', () => hangUpCall('Call ended'));
+    };
+    window._pendingCallDecline = () => {
+        stopSyntheticRing();
+        overlay.style.display = 'none';
+        call.close();
+        window._pendingCallAccept = null; window._pendingCallDecline = null;
+    };
+}
+
+function hangUpCall(logStatus) {
+    stopSyntheticRing();
+    if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+    if (activeCall) { try { activeCall.close(); } catch(e){} activeCall = null; }
+    // Also close all group call conns
+    Object.values(groupCallConns).forEach(c => { try { c.close(); } catch(e){} });
+    groupCallConns = {};
+    cleanupLocalStream();
+    const audio = document.getElementById('remoteAudio');
+    if (audio) { audio.srcObject = null; }
+    const overlay = document.getElementById('callOverlay');
+    const groupCallOverlay = document.getElementById('groupCallOverlay');
+    if (overlay) overlay.style.display = 'none';
+    if (groupCallOverlay) groupCallOverlay.style.display = 'none';
+    playDisconnectBeep();
+    if (selectedChat && callDurationSeconds > 1) {
+        const m = String(Math.floor(callDurationSeconds/60)).padStart(2,'0');
+        const s = String(callDurationSeconds%60).padStart(2,'0');
+        appendSystemMsg(`📞 Voice Call — ${logStatus} (${m}:${s})`);
+    } else if (selectedChat && callDurationSeconds <= 1) {
+        // Call failed or was too short — just show a toast, not a chat log
+        showNotification(logStatus || 'Call ended', 'info');
+    }
+}
+
+function cleanupLocalStream() {
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+}
+
+// ─── GROUP VOICE CALL ─────────────────────────────────────────────────────────
+// Group call works as a mesh: we call every other member simultaneously
+// Each connection's audio gets mixed by the browser automatically via separate <audio> elements
+
+async function startGroupCall() {
+    if (!selectedChat || selectedChat.type !== 'group') return;
+    const group = groupChats[selectedChat.id];
+    if (!group) return;
+    const otherMembers = group.members.filter(m => m.toLowerCase() !== currentUser.username.toLowerCase());
+    if (otherMembers.length === 0) { showNotification('No other members in group', 'info'); return; }
+
+    try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { showNotification('Mic permission denied', 'error'); return; }
+
+    // Show group call overlay
+    showGroupCallOverlay(group.name, group.members);
+
+    // Call each member
+    otherMembers.forEach(member => {
+        const memberPeerId = usernameToPeerId(member);
+        // First ensure data connection for invite
+        const dataConn = activeConns[memberPeerId];
+        if (dataConn && dataConn.open) {
+            dataConn.send({ type: 'group_call_invite', groupId: selectedChat.id, groupName: group.name, callerName: currentUser.username });
+        }
+        // Place audio call
+        const call = peer.call(memberPeerId, localStream, { metadata: { groupId: selectedChat.id, groupName: group.name } });
+        groupCallConns[memberPeerId] = call;
+        call.on('stream', remoteStream => {
+            addGroupCallAudioStream(member, remoteStream);
+            updateGroupCallParticipants(group.name, group.members);
+        });
+        call.on('close', () => {
+            removeGroupCallAudio(member);
+            delete groupCallConns[memberPeerId];
+        });
+    });
+}
+
+function handleIncomingGroupCall(call, callerName) {
+    const groupId = call.metadata.groupId;
+    const groupName = call.metadata.groupName;
+    // Show incoming group call UI
+    const overlay = document.getElementById('incomingCallOverlay');
+    if (overlay) {
+        document.getElementById('incomingCallName').textContent = `${callerName} → ${groupName}`;
+        const inAvWrap = document.getElementById('incomingCallAvatarWrap');
+        if (inAvWrap) inAvWrap.innerHTML = `<div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:3rem;">👥</div>`;
+        overlay.style.display = 'flex';
+        playSyntheticRing();
+    }
+
+    window._pendingCallAccept = async () => {
+        stopSyntheticRing();
+        if (overlay) overlay.style.display = 'none';
+        window._pendingCallAccept = null; window._pendingCallDecline = null;
+        try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+        catch { showNotification('Mic denied', 'error'); return; }
+        call.answer(localStream);
+        groupCallConns[call.peer] = call;
+        const group = groupChats[groupId];
+        showGroupCallOverlay(groupName, group ? group.members : [callerName, currentUser.username]);
+        call.on('stream', remoteStream => { addGroupCallAudioStream(callerName, remoteStream); });
+        call.on('close', () => { removeGroupCallAudio(callerName); delete groupCallConns[call.peer]; });
+        playConnectChime();
+    };
+
+    window._pendingCallDecline = () => {
+        stopSyntheticRing();
+        if (overlay) overlay.style.display = 'none';
+        call.close();
+        window._pendingCallAccept = null; window._pendingCallDecline = null;
+    };
+}
+
+function showIncomingGroupCallInvite(data, senderName) {
+    // Already handled by the peer.on('call') for mesh calls
+    // Just show a notification if they haven't called us yet
+    showNotification(`📞 ${senderName} started a call in "${data.groupName}"`, 'info');
+}
+
+function showGroupCallOverlay(groupName, members) {
+    let overlay = document.getElementById('groupCallOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'groupCallOverlay';
+        overlay.style.cssText = `position:fixed;inset:0;background:rgba(10,10,15,0.96);backdrop-filter:blur(20px);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;`;
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+    updateGroupCallParticipants(groupName, members);
+}
+
+function updateGroupCallParticipants(groupName, members) {
+    const overlay = document.getElementById('groupCallOverlay');
+    if (!overlay) return;
+    const participantAvatars = members.map(m => {
+        const isMe = m.toLowerCase() === currentUser.username.toLowerCase();
+        const avUser = { username: m, avatar: isMe ? currentUser.avatar : getAvatarFor(m) };
+        const connected = isMe || !!groupCallConns[usernameToPeerId(m)];
+        return `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;">
+                <div style="position:relative;">
+                    ${avatarEl(avUser, 70, '1.4rem')}
+                    <span style="position:absolute;bottom:2px;right:2px;width:12px;height:12px;border-radius:50%;background:${connected ? '#22c55e' : '#94a3b8'};border:2px solid rgba(10,10,15,0.96);"></span>
+                </div>
+                <span style="font-size:0.78rem;color:${connected ? 'var(--text-main)' : 'var(--text-muted)'};">${escapeHTML(m)}${isMe ? ' (You)' : ''}</span>
+            </div>
+        `;
+    }).join('');
+
+    overlay.innerHTML = `
+        <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:2rem;">
+            <div>
+                <div style="font-size:0.9rem;color:var(--text-muted);letter-spacing:2px;font-family:'Orbitron',sans-serif;margin-bottom:0.5rem;">GROUP CALL</div>
+                <h2 style="font-family:'Orbitron',sans-serif;font-size:1.8rem;letter-spacing:1px;">${escapeHTML(groupName)}</h2>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:center;max-width:500px;">${participantAvatars}</div>
+            <div id="groupCallVisualizer" style="display:flex;align-items:center;gap:4px;height:40px;margin-top:0.5rem;">
+                <div style="width:4px;height:10px;background:var(--primary);border-radius:2px;animation:bounceBar 0.8s ease-in-out infinite alternate;"></div>
+                <div style="width:4px;height:10px;background:var(--secondary);border-radius:2px;animation:bounceBar 1.1s ease-in-out infinite alternate;animation-delay:0.2s;"></div>
+                <div style="width:4px;height:10px;background:var(--accent);border-radius:2px;animation:bounceBar 0.9s ease-in-out infinite alternate;animation-delay:0.4s;"></div>
+                <div style="width:4px;height:10px;background:var(--primary);border-radius:2px;animation:bounceBar 1.2s ease-in-out infinite alternate;animation-delay:0.1s;"></div>
+                <div style="width:4px;height:10px;background:var(--secondary);border-radius:2px;animation:bounceBar 0.7s ease-in-out infinite alternate;animation-delay:0.3s;"></div>
+            </div>
+            <div id="groupCallAudioContainer"></div>
+            <div style="display:flex;gap:2rem;margin-top:1.5rem;">
+                <button id="btnGroupMute" class="btn btn-secondary" style="width:60px;height:60px;border-radius:50%;padding:0;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);border:1px solid var(--border);">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+                <button id="btnEndGroupCall" class="btn" style="width:60px;height:60px;border-radius:50%;padding:0;align-items:center;justify-content:center;background:var(--accent);color:white;box-shadow:0 0 20px rgba(244,63,94,0.4);">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72" transform="rotate(135 12 12)"/></svg>
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btnEndGroupCall').addEventListener('click', () => hangUpCall('Group call ended'));
+    const gMuteBtn = document.getElementById('btnGroupMute');
+    gMuteBtn.addEventListener('click', () => {
+        gMuteBtn.classList.toggle('active');
+        if (localStream) localStream.getAudioTracks().forEach(t => { t.enabled = !gMuteBtn.classList.contains('active'); });
+        gMuteBtn.style.background = gMuteBtn.classList.contains('active') ? 'rgba(244,63,94,0.25)' : 'rgba(255,255,255,0.08)';
+    });
+}
+
+function addGroupCallAudioStream(memberName, stream) {
+    const container = document.getElementById('groupCallAudioContainer');
+    if (!container) return;
+    let audioEl = document.getElementById('groupaudio-' + memberName.toLowerCase().replace(/\W/g,'-'));
+    if (!audioEl) {
+        audioEl = document.createElement('audio');
+        audioEl.id = 'groupaudio-' + memberName.toLowerCase().replace(/\W/g,'-');
+        audioEl.autoplay = true;
+        container.appendChild(audioEl);
+    }
+    audioEl.srcObject = stream;
+    audioEl.play().catch(()=>{});
+}
+
+function removeGroupCallAudio(memberName) {
+    const audioEl = document.getElementById('groupaudio-' + memberName.toLowerCase().replace(/\W/g,'-'));
+    if (audioEl) audioEl.remove();
+}
+
+// ─── AUDIO SYNTH ─────────────────────────────────────────────────────────────
+let callAudioCtx = null, callRingInterval = null, ringOsc1 = null, ringOsc2 = null;
+function playSyntheticRing() {
+    try {
+        callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const ring = () => {
+            if (!callAudioCtx) return;
+            const g = callAudioCtx.createGain();
+            g.gain.setValueAtTime(0, callAudioCtx.currentTime);
+            g.gain.linearRampToValueAtTime(0.15, callAudioCtx.currentTime+0.1);
+            g.gain.setValueAtTime(0.15, callAudioCtx.currentTime+1.2);
+            g.gain.linearRampToValueAtTime(0, callAudioCtx.currentTime+1.3);
+            ringOsc1 = callAudioCtx.createOscillator(); ringOsc2 = callAudioCtx.createOscillator();
+            ringOsc1.type = 'sine'; ringOsc2.type = 'sine';
+            ringOsc1.frequency.setValueAtTime(440, callAudioCtx.currentTime);
+            ringOsc2.frequency.setValueAtTime(480, callAudioCtx.currentTime);
+            ringOsc1.connect(g); ringOsc2.connect(g); g.connect(callAudioCtx.destination);
+            ringOsc1.start(); ringOsc2.start();
+            ringOsc1.stop(callAudioCtx.currentTime+1.3); ringOsc2.stop(callAudioCtx.currentTime+1.3);
+        };
+        ring(); callRingInterval = setInterval(ring, 3000);
+    } catch(e){}
+}
+function stopSyntheticRing() {
+    if (callRingInterval) { clearInterval(callRingInterval); callRingInterval = null; }
+    try { if (ringOsc1) ringOsc1.stop(); } catch(e){} try { if (ringOsc2) ringOsc2.stop(); } catch(e){}
+    ringOsc1 = null; ringOsc2 = null;
+    if (callAudioCtx) { try { callAudioCtx.close(); } catch(e){} callAudioCtx = null; }
+}
+function playConnectChime() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(523.25, ctx.currentTime);
+        o.frequency.setValueAtTime(659.25, ctx.currentTime+0.1);
+        o.frequency.setValueAtTime(783.99, ctx.currentTime+0.2);
+        g.gain.setValueAtTime(0.2, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.4);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+0.45);
+        setTimeout(()=>ctx.close(),1000);
+    } catch(e){}
+}
+function playDisconnectBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(329.63, ctx.currentTime);
+        o.frequency.setValueAtTime(293.66, ctx.currentTime+0.15);
+        g.gain.setValueAtTime(0.2, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.35);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+0.45);
+        setTimeout(()=>ctx.close(),1000);
+    } catch(e){}
+}
+
+// ─── SELF-INIT ─────────────────────────────────────────────────────────────
+// community.js is now loaded dynamically (by auth-client.js, after the real
+// account has been bridged into this file's localStorage-based login), which
+// means it can finish loading after core.js's own DOMContentLoaded handler
+// already ran and skipped its guarded initCommunityAuth() call. So this file
+// starts itself the moment it's done loading, instead of waiting to be
+// called from outside.
+initCommunityAuth();
+
+// If the person clicked "Community" in the sidebar before this script had
+// finished loading, core.js set this flag instead of silently doing nothing.
+// Honor it now that we're ready.
+if (window.__spcPendingCommunityOpen) {
+    window.__spcPendingCommunityOpen = false;
+    showCommunityTab();
+}
+

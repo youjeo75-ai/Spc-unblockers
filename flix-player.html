@@ -184,7 +184,48 @@
         .main-content { margin-left: 0 !important; width: 100% !important; }
         .top-nav { position: sticky; top: 0; z-index: 100; }
     </style>
+<script>
+(function() {
+    // 1. Neuter window.open (Most common popup vector)
+    const originalOpen = window.open;
+    window.open = function(url, name, specs) {
+        console.warn('🛡️ Blocked window.open:', url);
+        return null; 
+    };
 
+    // 2. Block target="_blank" clicks globally
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a');
+        if (link && (link.target === '_blank' || link.target === '_new')) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn('🛡️ Blocked new tab click:', link.href);
+        }
+    }, true);
+
+    // 3. Intercept postMessage popups from iframes
+    window.addEventListener('message', function(e) {
+        // Some embeds send messages to request popups
+        // Log for debugging but don't act on suspicious requests
+        if (e.data && typeof e.data === 'string' && e.data.includes('popup')) {
+            console.warn('🛡️ Blocked iframe popup message:', e.data);
+        }
+    });
+
+    // 4. Override document.write to prevent injected popup scripts
+    const originalWrite = document.write;
+    document.write = function(...args) {
+        const content = args.join('');
+        if (content.includes('window.open') || content.includes('target="_blank"')) {
+            console.warn('🛡️ Blocked suspicious document.write');
+            return;
+        }
+        return originalWrite.apply(document, args);
+    };
+
+    console.log('🛡️ JS Popup Shield Active (No Sandbox Mode)');
+})();
+</script>
 </head>
 <body>
 <div class="app-container">

@@ -1252,407 +1252,359 @@
    DATA – Catalogue (unchanged)
    ============================================================== */
 const CATALOGUE = [
-    // ── MOVIES ──────────────────────────────────────────────────────
-  
-{type:'movie',title:'Inception',year:2010,rating:'8.8',genre:'Sci-Fi / Thriller',
-poster:'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/s3TBrRGB1iav7gFOCNx3H31MoES.jpg',
-desc:'A thief who steals corporate secrets through dream-sharing is given the inverse task of planting an idea into the mind of a C.E.O.',
-url:'https://vidlink.pro/movie/tt1375666'},
+  // ── MOVIES ──────────────────────────────────────────────────────
+  {
+    type: 'movie', title: 'Inception', year: 2010, rating: '8.8', genre: 'Sci-Fi / Thriller',
+    poster: 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/s3TBrRGB1iav7gFOCNx3H31MoES.jpg',
+    desc: 'A thief who steals corporate secrets through dream-sharing is given the inverse task of planting an idea into the mind of a C.E.O.',
+    url: 'https://vidlink.pro/movie/27205'
+  },
+  {
+    type: 'movie', title: 'Interstellar', year: 2014, rating: '8.7', genre: 'Sci-Fi / Adventure',
+    poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/rAiYTfKGqDCRIIqo664sY9XMsev.jpg',
+    desc: "A team of explorers travel through a wormhole in space to ensure humanity's survival.",
+    url: 'https://vidlink.pro/movie/157336'
+  },
+  {
+    type: 'movie', title: 'The Dark Knight', year: 2008, rating: '9.0', genre: 'Action / Crime',
+    poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/nMKdUUepR0i5zn0y1T4CsSB5chy.jpg',
+    desc: 'When the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests of his ability to fight injustice.',
+    url: 'https://vidlink.pro/movie/155'
+  },
+  {
+    type: 'movie', title: 'The Shawshank Redemption', year: 1994, rating: '9.3', genre: 'Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/lyQBXzOQSuE59IsHyhrp0qIiPAz.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
+    desc: 'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.',
+    url: 'https://vidlink.pro/movie/278'
+  },
+  {
+    type: 'movie', title: 'The Matrix', year: 1999, rating: '8.7', genre: 'Sci-Fi / Action',
+    poster: 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg',
+    desc: 'A computer hacker learns the world he lives in is a simulated reality controlled by machines.',
+    url: 'https://vidlink.pro/movie/603'
+  },
+  {
+    type: 'movie', title: 'Goodfellas', year: 1990, rating: '8.7', genre: 'Crime / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/sw7mordbZxgITU877yTpZCud90M.jpg',
+    desc: 'The story of Henry Hill and his life in the mob, covering his career from childhood through adulthood.',
+    url: 'https://vidlink.pro/movie/769'
+  },
+  {
+    type: 'movie', title: 'Oppenheimer', year: 2023, rating: '8.4', genre: 'Biography / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg',
+    desc: "The story of J. Robert Oppenheimer and his role in the development of the atomic bomb.",
+    url: 'https://vidlink.pro/movie/872585'
+  },
+  {
+    type: 'movie', title: 'Parasite', year: 2019, rating: '8.5', genre: 'Thriller / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg',
+    desc: 'Greed and class discrimination threaten the symbiotic relationship between two families.',
+    url: 'https://vidlink.pro/movie/496243'
+  },
+  {
+    type: 'movie', title: 'Joker', year: 2019, rating: '8.4', genre: 'Crime / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg',
+    backdrop: 'https://m.media-amazon.com/images/M/MV5BMGQ1ZGZmNTAtM2MyYi00NmZhLTkwYmYtNTNlZDRhMzU2ZTgwXkEyXkFqcGdeQW1yb3NzZXI@._V1_.jpg',
+    desc: 'A failed comedian begins a slow descent into madness, transforming into the iconic villain Joker.',
+    url: 'https://vidlink.pro/movie/475557'
+  },
+  {
+    type: 'movie', title: 'Forrest Gump', year: 1994, rating: '8.8', genre: 'Drama / Romance',
+    poster: 'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
+    backdrop: 'https://i.guim.co.uk/img/media/78eb1f6bd0f92d4d3cf19f5bddda1a902e2a6fcd/0_95_2371_1422/master/2371.jpg?width=1200&quality=85&auto=format&fit=max&s=e38a50cd354d94cc959a8a34f6536a7c',
+    desc: 'The presidencies of Kennedy and Johnson unfold through the perspective of an Alabama man with an IQ of 75.',
+    url: 'https://vidlink.pro/movie/13'
+  },
+  {
+    type: 'movie', title: 'Avengers: Endgame', year: 2019, rating: '8.4', genre: 'Action / Adventure',
+    poster: 'https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg',
+    desc: "After the devastating events of Infinity War, the Avengers assemble to undo Thanos's actions.",
+    url: 'https://vidlink.pro/movie/299534'
+  },
+  {
+    type: 'movie', title: 'Gladiator', year: 2000, rating: '8.5', genre: 'Action / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg',
+    backdrop: 'https://i0.wp.com/alexandermeddings.com/wp-content/uploads/2024/08/gladiator_-_h_-_2000.webp',
+    desc: "A Roman general betrayed by the emperor's corrupt son seeks revenge as a gladiator.",
+    url: 'https://vidlink.pro/movie/98'
+  },
+  {
+    type: 'movie', title: 'The Wolf of Wall Street', year: 2013, rating: '8.2', genre: 'Biography / Crime',
+    poster: 'https://m.media-amazon.com/images/M/MV5BMjIxMjgxNTk0MF5BMl5BanBnXkFtZTgwNjIyOTg2MDE@._V1_.jpg',
+    backdrop: 'https://wallpapers.com/images/hd/wolf-of-wall-street-1920-x-1080-background-u8klabj8ny8luo7t.jpg',
+    desc: 'Based on the true story of Jordan Belfort, a New York stockbroker who ran a massive fraud empire.',
+    url: 'https://vidlink.pro/movie/106646'
+  },
+  {
+    type: 'movie', title: 'Dune: Part One', year: 2021, rating: '8.0', genre: 'Sci-Fi / Adventure',
+    poster: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSt7xlJEzb-xopDqcQ6iw9SbY8PAlJN8H7DYUzTqmZkwLT9o8JXv6YWvDMGRKwkyRnf6RHzGg&s=10',
+    backdrop: 'https://image.tmdb.org/t/p/original/jYEW5xZkZk2WTrdbMGAPFuBqbDc.jpg',
+    desc: "Paul Atreides must travel to the most dangerous planet in the universe.",
+    url: 'https://vidlink.pro/movie/438631'
+  },
+  {
+    type: 'movie', title: 'Blade Runner 2049', year: 2017, rating: '8.0', genre: 'Sci-Fi / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
+    backdrop: 'data:image/jpeg;base64,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',
+    desc: 'A new blade runner unearths a long-buried secret that has the potential to plunge society into chaos.',
+    url: 'https://vidlink.pro/movie/335984'
+  },
+  {
+    type: 'movie', title: 'Mad Max: Fury Road', year: 2015, rating: '8.1', genre: 'Action / Sci-Fi',
+    poster: 'https://image.tmdb.org/t/p/w500/8tZYtuWezp8JbcsvHYO0O46tFbo.jpg',
+    backdrop: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQalK-ESDoxZ9A7ReRIRrQtBnTUJX6jQ85mLQ&s',
+    desc: 'In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.',
+    url: 'https://vidlink.pro/movie/76341'
+  },
+  {
+    type: 'movie', title: 'Spider-Man: Across the Spider-Verse', year: 2023, rating: '8.7', genre: 'Animation / Action',
+    poster: 'https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg',
+    desc: 'Miles Morales catapults across the Multiverse, encountering a team of Spider-People.',
+    url: 'https://vidlink.pro/movie/569094'
+  },
+  {
+    type: 'movie', title: 'Despicable Me', year: 2010, rating: '7.6', genre: 'Minions / Action',
+    poster: 'https://static.wikia.nocookie.net/despicableme/images/1/1b/Despicable_me_3d_logo_.jpg/revision/latest?cb=20240814133028',
+    backdrop: 'https://image.tmdb.org/t/p/original/xVEBLD278GuFZoPFskpD3dvdJlV.jpg',
+    desc: 'Gru, a criminal mastermind, adopts three orphans as pawns to carry out the biggest heist in history. His life takes an unexpected turn when the little girls see the evildoer as their potential father.',
+    url: 'https://vidlink.pro/movie/20352'
+  },
+  {
+    type: 'movie', title: 'Despicable Me 2', year: 2013, rating: '7.3', genre: 'Minions / Action',
+    poster: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_h10byhE3J5PAcunr67kgEy1a8lnhtbsWY492m-ttYw&s=10',
+    backdrop: 'https://image.tmdb.org/t/p/original/uD267eSiACfWLxp47t3gYymOQRj.jpg',
+    desc: 'When a new criminal comes to town, the Anti-Villain League decides to hire Gru in order to fight him off. While Gru initially refuses, he eventually agrees after his aide goes back to his evil ways.',
+    url: 'https://vidlink.pro/movie/93456'
+  },
+  {
+    type: 'movie', title: 'Minions', year: 2015, rating: '6.4', genre: 'Minions / Action',
+    poster: 'data:image/jpeg;base64,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......
+    backdrop: 'https://image.tmdb.org/t/p/original/wKrxeY6lbu7KFBsWVcMH6M8avwr.jpg',
+    desc: 'When a new criminal comes to town, the Anti-Villain League decides to hire Gru in order to fight him off. While Gru initially refuses, he eventually agrees after his aide goes back to his evil ways.',
+    url: 'https://vidlink.pro/movie/211672'
+  },
 
-{type:'movie',title:'Interstellar',year:2014,rating:'8.7',genre:'Sci-Fi / Adventure',
-poster:'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/rAiYTfKGqDCRIIqo664sY9XMsev.jpg',
-desc:"A team of explorers travel through a wormhole in space to ensure humanity's survival.",
-url:'https://vidlink.pro/movie/tt0816692'},
+  // ── SERIES ──────────────────────────────────────────────────────
+  {
+    type: 'series', title: 'Breaking Bad', year: 2008, rating: '9.5', genre: 'Crime / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg',
+    desc: "A chemistry teacher turns to manufacturing meth to secure his family's future.",
+    seasons: 5, eps: [7, 13, 13, 13, 16],
+    urlTemplate: 'https://vidlink.pro/tv/1396/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Game of Thrones', year: 2011, rating: '9.2', genre: 'Fantasy / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/suopoADq0k8YZr4dQXcU6pToj6s.jpg',
+    desc: 'Nine noble families fight for control of Westeros while an ancient enemy returns.',
+    seasons: 8, eps: [10, 10, 10, 10, 10, 10, 7, 6],
+    urlTemplate: 'https://vidlink.pro/tv/1399/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Stranger Things', year: 2016, rating: '8.7', genre: 'Sci-Fi / Horror',
+    poster: 'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
+    backdrop: 'https://wallpapers.com/images/hd/stranger-things-aesthetic-desktop-hrz824k4nubtbmy3.jpg',
+    desc: 'When a boy disappears, his mother and friends must confront terrifying supernatural forces.',
+    seasons: 4, eps: [8, 9, 9, 9],
+    urlTemplate: 'https://vidlink.pro/tv/66732/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Rick and Morty', year: 2013, rating: '9.1', genre: 'Animation / Comedy',
+    poster: 'https://image.tmdb.org/t/p/w500/gdIrmf2DdY5mgN6ycVP0XlzKzbE.jpg',
+    backdrop: 'https://m.media-amazon.com/images/M/MV5BZGQyZjk2MzMtMTcyNC00NGU3LTlmNjItNDExMWM4ZDFhYmQ2XkEyXkFqcGc@._V1_QL75_UX500_CR0,234,500,281_.jpg',
+    desc: 'An elderly mad scientist and his good-hearted grandson go on fantastically dangerous adventures.',
+    seasons: 7, eps: [11, 10, 10, 10, 10, 10, 10],
+    urlTemplate: 'https://vidlink.pro/tv/60625/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'The Last of Us', year: 2023, rating: '8.8', genre: 'Drama / Horror',
+    poster: 'https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg',
+    backdrop: 'https://lh3.googleusercontent.com/vGBG9_v_Fsz4UfrZCer7Eyfha1vUM9dlMKo54NqUgLpuC9AoOXpReK0rYctRnrek3yLkfbT_BuCNzsEkzBQQFz_fPA=s1280-w1280-h800',
+    desc: "Twenty years after a fungal infection destroys civilization, a smuggler must escort a girl who may be humanity's last hope.",
+    seasons: 2, eps: [9, 7],
+    urlTemplate: 'https://vidlink.pro/tv/100088/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'The Boys', year: 2019, rating: '8.7', genre: 'Action / Comedy',
+    poster: 'https://image.tmdb.org/t/p/w500/stTEycfG9928HYGEISBFaG1ngjM.jpg',
+    backdrop: 'https://images.wallpapersden.com/image/download/the-boys-2_bGdtbGWUmZqaraWkpJRmbmdlrWZlbWU.jpg',
+    desc: 'A group of vigilantes fights back against corrupt superheroes who abuse their powers.',
+    seasons: 4, eps: [8, 8, 8, 8],
+    urlTemplate: 'https://vidlink.pro/tv/76479/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Chernobyl', year: 2019, rating: '9.4', genre: 'Drama / History',
+    poster: 'https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg',
+    backdrop: 'https://m.media-amazon.com/images/M/MV5BZTVhYzgzZWYtNDIxYy00YThkLThiMWItOTJmNTI0ZjA4MjI2XkEyXkFqcGdeQWtlbGFyc2Vu._V1_.jpg',
+    desc: 'The true story of the 1986 nuclear disaster and the men and women who sacrificed to contain it.',
+    seasons: 1, eps: [5],
+    urlTemplate: 'https://vidlink.pro/tv/87108/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Black Mirror', year: 2011, rating: '8.7', genre: 'Sci-Fi / Thriller',
+    poster: 'https://image.tmdb.org/t/p/w500/7PRddO7z7mcPi21nZTCMGShAyy1.jpg',
+    backdrop: 'https://occ-0-8407-2218.1.nflxso.net/dnm/api/v6/6AYY37jfdO6hpXcMjf9Yu5cnmO0/AAAABVOcbIH9qUxLvr7AikfRezxcKVixy6JcIusan2fze4x_MRfda3mLfAw1QjZfBL96g8EoKFsVpDKc94m5dQdEreWE5vb4fQxfwcWh.jpg?r=fe6',
+    desc: 'An anthology series exploring the dark side of technology and human nature in the near future.',
+    seasons: 6, eps: [3, 4, 6, 6, 3, 6],
+    urlTemplate: 'https://vidlink.pro/tv/42009/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Dark', year: 2017, rating: '8.8', genre: 'Sci-Fi / Mystery',
+    poster: 'https://image.tmdb.org/t/p/w500/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg',
+    backdrop: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyM6AWNv8o8Ei1JC89zKDT0ZFcxTWRyrFGqg&s',
+    desc: 'A missing child sets off a chain of events uncovering a time travel conspiracy spanning four families.',
+    seasons: 3, eps: [10, 8, 8],
+    urlTemplate: 'https://vidlink.pro/tv/70523/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Succession', year: 2018, rating: '8.9', genre: 'Drama / Comedy',
+    poster: 'https://image.tmdb.org/t/p/w500/7HW47XbkNQ5fiwQFYGWdw9gs144.jpg',
+    backdrop: 'https://wallpapers.com/images/hd/succession-roy-family-in-dinner-table-hswlnykh9igvewyn.jpg',
+    desc: 'The Roy family, owners of a global media empire, battle for the future of the company.',
+    seasons: 4, eps: [10, 10, 9, 10],
+    urlTemplate: 'https://vidlink.pro/tv/76669/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Squid Game', year: 2021, rating: '8.0', genre: 'Thriller / Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/qw3J9cNeLioOLoR68WX7z79aCdK.jpg',
+    desc: "Hundreds of cash-strapped players compete in children's games for a prize at deadly risk.",
+    seasons: 2, eps: [9, 7],
+    urlTemplate: 'https://vidlink.pro/tv/93405/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'The Mandalorian', year: 2019, rating: '8.7', genre: 'Sci-Fi / Adventure',
+    poster: 'https://image.tmdb.org/t/p/w500/sWgBv7LV2PRoQgkxwlibdGXKz1S.jpg',
+    backdrop: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMksQGx1FCGR2aRNnrcRiSKEGKxzZ1bQSHJw&s',
+    desc: 'A lone bounty hunter and a Force-sensitive child are pursued across the outer reaches of the galaxy.',
+    seasons: 3, eps: [8, 8, 8],
+    urlTemplate: 'https://vidlink.pro/tv/82856/{season}/{episode}'
+  },
+  {
+    type: 'series', title: 'Avatar: The Last Airbender', year: 2005, rating: '9.3', genre: 'Adventure / Fantasy',
+    poster: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNMll8kFJhE6P7JWz16unx9uGdf5cFh88fIzD5Ag9HTwJ29yMW2fCNQv3q&s=10',
+    backdrop: 'https://images.wallpapersden.com/image/download/netflix-avatar-the-last-airbender_bmdlbmWUmZqaraWkpJRnbGtqrWZqamo.jpg',
+    desc: 'A young boy known as the Avatar must master the four elemental powers to save the world, and fight against an enemy bent on stopping him.',
+    seasons: 3, eps: [20, 20, 21],
+    urlTemplate: 'https://vidlink.pro/tv/246/{season}/{episode}'
+  },
 
-{type:'movie',title:'The Dark Knight',year:2008,rating:'9.0',genre:'Action / Crime',
-poster:'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/nMKdUUepR0i5zn0y1T4CsSB5chy.jpg',
-desc:'When the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests of his ability to fight injustice.',
-url:'https://vidlink.pro/movie/tt0468569'},
-
-{type:'movie',title:'The Shawshank Redemption',year:1994,rating:'9.3',genre:'Drama',
-poster:'https://image.tmdb.org/t/p/w500/lyQBXzOQSuE59IsHyhrp0qIiPAz.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
-desc:'Two imprisoned men bond over years, finding solace and redemption through acts of common decency.',
-url:'https://vidlink.pro/movie/tt0111161'},
-
-
-
-{type:'movie',title:'The Matrix',year:1999,rating:'8.7',genre:'Sci-Fi / Action',
-poster:'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg',
-desc:'A computer hacker learns the world he lives in is a simulated reality controlled by machines.',
-url:'https://vidlink.pro/movie/tt0133093'},
-
-{type:'movie',title:'Goodfellas',year:1990,rating:'8.7',genre:'Crime / Drama',
-poster:'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/sw7mordbZxgITU877yTpZCud90M.jpg',
-desc:'The story of Henry Hill and his life in the mob, covering his career from childhood through adulthood.',
-url:'https://vidlink.pro/movie/tt0099685'},
-
-{type:'movie',title:'Oppenheimer',year:2023,rating:'8.4',genre:'Biography / Drama',
-poster:'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg',
-desc:"The story of J. Robert Oppenheimer and his role in the development of the atomic bomb.",
-url:'https://vidlink.pro/movie/tt15398776'},
-
-{type:'movie',title:'Parasite',year:2019,rating:'8.5',genre:'Thriller / Drama',
-poster:'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg',
-desc:'Greed and class discrimination threaten the symbiotic relationship between two families.',
-url:'https://vidlink.pro/movie/tt6751668'},
-
-{type:'movie',title:'Joker',year:2019,rating:'8.4',genre:'Crime / Drama',
-poster:'https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg',
-backdrop:'https://m.media-amazon.com/images/M/MV5BMGQ1ZGZmNTAtM2MyYi00NmZhLTkwYmYtNTNlZDRhMzU2ZTgwXkEyXkFqcGdeQW1yb3NzZXI@._V1_.jpg',
-desc:'A failed comedian begins a slow descent into madness, transforming into the iconic villain Joker.',
-url:'https://vidlink.pro/movie/tt7286456'},
-
-{type:'movie',title:'Forrest Gump',year:1994,rating:'8.8',genre:'Drama / Romance',
-poster:'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
-backdrop:'https://i.guim.co.uk/img/media/78eb1f6bd0f92d4d3cf19f5bddda1a902e2a6fcd/0_95_2371_1422/master/2371.jpg?width=1200&quality=85&auto=format&fit=max&s=e38a50cd354d94cc959a8a34f6536a7c',
-desc:'The presidencies of Kennedy and Johnson unfold through the perspective of an Alabama man with an IQ of 75.',
-url:'https://vidlink.pro/movie/tt0109830'},
-
-{type:'movie',title:'Avengers: Endgame',year:2019,rating:'8.4',genre:'Action / Adventure',
-poster:'https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg',
-desc:"After the devastating events of Infinity War, the Avengers assemble to undo Thanos's actions.",
-url:'https://vidlink.pro/movie/tt4154796'},
-
-{type:'movie',title:'Gladiator',year:2000,rating:'8.5',genre:'Action / Drama',
-poster:'https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg',
-backdrop:'https://i0.wp.com/alexandermeddings.com/wp-content/uploads/2024/08/gladiator_-_h_-_2000.webp',
-desc:"A Roman general betrayed by the emperor's corrupt son seeks revenge as a gladiator.",
-url:'https://vidlink.pro/movie/tt0172495'},
-
-
-{type:'movie',title:'The Wolf of Wall Street',year:2013,rating:'8.2',genre:'Biography / Crime',
-poster:'https://m.media-amazon.com/images/M/MV5BMjIxMjgxNTk0MF5BMl5BanBnXkFtZTgwNjIyOTg2MDE@._V1_.jpg',
-backdrop:'https://wallpapers.com/images/hd/wolf-of-wall-street-1920-x-1080-background-u8klabj8ny8luo7t.jpg',
-desc:'Based on the true story of Jordan Belfort, a New York stockbroker who ran a massive fraud empire.',
-url:'https://vidlink.pro/movie/tt0993846'},
-
-{type:'movie',title:'Dune: Part One',year:2021,rating:'8.0',genre:'Sci-Fi / Adventure',
-poster:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSt7xlJEzb-xopDqcQ6iw9SbY8PAlJN8H7DYUzTqmZkwLT9o8JXv6YWvDMGRKwkyRnf6RHzGg&s=10',
-backdrop:'https://image.tmdb.org/t/p/original/jYEW5xZkZk2WTrdbMGAPFuBqbDc.jpg',
-desc:"Paul Atreides must travel to the most dangerous planet in the universe.",
-url:'https://vidlink.pro/movie/tt1160419'},
-
-{type:'movie',title:'Blade Runner 2049',year:2017,rating:'8.0',genre:'Sci-Fi / Drama',
-poster:'https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
-backdrop:'data:image/jpeg;base64,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',
-desc:'A new blade runner unearths a long-buried secret that has the potential to plunge society into chaos.',
-url:'https://vidlink.pro/movie/tt1856101'},
-
-{type:'movie',title:'Mad Max: Fury Road',year:2015,rating:'8.1',genre:'Action / Sci-Fi',
-poster:'https://image.tmdb.org/t/p/w500/8tZYtuWezp8JbcsvHYO0O46tFbo.jpg',
-backdrop:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQalK-ESDoxZ9A7ReRIRrQtBnTUJX6jQ85mLQ&s',
-desc:'In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search of her homeland.',
-url:'https://vidlink.pro/movie/tt1392190'},
-
-{type:'movie',title:'Spider-Man: Across the Spider-Verse',year:2023,rating:'8.7',genre:'Animation / Action',
-poster:'https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg',
-desc:'Miles Morales catapults across the Multiverse, encountering a team of Spider-People.',
-url:'https://vidlink.pro/movie/tt9362722'},
-    
-{type:'movie',title:'Despicable Me: ',year:2010,rating:'7.6',genre:'Minions / Action',
-poster:'https://static.wikia.nocookie.net/despicableme/images/1/1b/Despicable_me_3d_logo_.jpg/revision/latest?cb=20240814133028',
-backdrop:'https://image.tmdb.org/t/p/original/xVEBLD278GuFZoPFskpD3dvdJlV.jpg',
-desc:'Gru, a criminal mastermind, adopts three orphans as pawns to carry out the biggest heist in history. His life takes an unexpected turn when the little girls see the evildoer as their potential father.',
-url:'https://vidlink.pro/movie/tt1323594'},
-
-{type:'movie',title:'Despicable Me 2: ',year:2013,rating:'7.3',genre:'Minions / Action',
-poster:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_h10byhE3J5PAcunr67kgEy1a8lnhtbsWY492m-ttYw&s=10',
-backdrop:'https://image.tmdb.org/t/p/original/uD267eSiACfWLxp47t3gYymOQRj.jpg',
-desc:'When a new criminal comes to town, the Anti-Villain League decides to hire Gru in order to fight him off. While Gru initially refuses, he eventually agrees after his aide goes back to his evil ways.',
-url:'https://vidlink.pro/movie/tt1690953'},    
-
-
-{type:'movie',title:'Minions: ',year:2015,rating:'6.4',genre:'Minions / Action',
-poster:'data:image/jpeg;base64,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',
-backdrop:'https://image.tmdb.org/t/p/original/wKrxeY6lbu7KFBsWVcMH6M8avwr.jpg',
-desc:'When a new criminal comes to town, the Anti-Villain League decides to hire Gru in order to fight him off. While Gru initially refuses, he eventually agrees after his aide goes back to his evil ways.',
-url:'https://vidlink.pro/movie/tt2293640'},    
-    
-
-// ── SERIES ──────────────────────────────────────────────────────
-{type:'series',title:'Breaking Bad',year:2008,rating:'9.5',genre:'Crime / Drama',
-poster:'https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg',
-desc:"A chemistry teacher turns to manufacturing meth to secure his family's future.",
-seasons:5,eps:[7,13,13,13,16],
-urlTemplate:'https://vidlink.pro/tv/tt0903747/{season}/{episode}'},
-
-{type:'series',title:'Game of Thrones',year:2011,rating:'9.2',genre:'Fantasy / Drama',
-poster:'https://image.tmdb.org/t/p/w500/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/suopoADq0k8YZr4dQXcU6pToj6s.jpg',
-desc:'Nine noble families fight for control of Westeros while an ancient enemy returns.',
-seasons:8,eps:[10,10,10,10,10,10,7,6],
-urlTemplate:'https://vidlink.pro/tv/tt0944947/{season}/{episode}'},
-
-{type:'series',title:'Stranger Things',year:2016,rating:'8.7',genre:'Sci-Fi / Horror',
-poster:'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
-backdrop:'https://wallpapers.com/images/hd/stranger-things-aesthetic-desktop-hrz824k4nubtbmy3.jpg',
-desc:'When a boy disappears, his mother and friends must confront terrifying supernatural forces.',
-seasons:4,eps:[8,9,9,9],
-urlTemplate:'https://vidlink.pro/tv/tt4574334/{season}/{episode}'},
-
-
-
-{type:'series',title:'Rick and Morty',year:2013,rating:'9.1',genre:'Animation / Comedy',
-poster:'https://image.tmdb.org/t/p/w500/gdIrmf2DdY5mgN6ycVP0XlzKzbE.jpg',
-backdrop:'https://m.media-amazon.com/images/M/MV5BZGQyZjk2MzMtMTcyNC00NGU3LTlmNjItNDExMWM4ZDFhYmQ2XkEyXkFqcGc@._V1_QL75_UX500_CR0,234,500,281_.jpg',
-desc:'An elderly mad scientist and his good-hearted grandson go on fantastically dangerous adventures.',
-seasons:7,eps:[11,10,10,10,10,10,10],
-urlTemplate:'https://vidlink.pro/tv/tt2861424/{season}/{episode}'},
-
-{type:'series',title:'The Last of Us',year:2023,rating:'8.8',genre:'Drama / Horror',
-poster:'https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg',
-backdrop:'https://lh3.googleusercontent.com/vGBG9_v_Fsz4UfrZCer7Eyfha1vUM9dlMKo54NqUgLpuC9AoOXpReK0rYctRnrek3yLkfbT_BuCNzsEkzBQQFz_fPA=s1280-w1280-h800',
-desc:"Twenty years after a fungal infection destroys civilization, a smuggler must escort a girl who may be humanity's last hope.",
-seasons:2,eps:[9,7],
-urlTemplate:'https://vidlink.pro/tv/tt3581920/{season}/{episode}'},
-
-{type:'series',title:'The Boys',year:2019,rating:'8.7',genre:'Action / Comedy',
-poster:'https://image.tmdb.org/t/p/w500/stTEycfG9928HYGEISBFaG1ngjM.jpg',
-backdrop:'https://images.wallpapersden.com/image/download/the-boys-2_bGdtbGWUmZqaraWkpJRmbmdlrWZlbWU.jpg',
-desc:'A group of vigilantes fights back against corrupt superheroes who abuse their powers.',
-seasons:4,eps:[8,8,8,8],
-urlTemplate:'https://vidlink.pro/tv/tt1190634/{season}/{episode}'},
-
-{type:'series',title:'Chernobyl',year:2019,rating:'9.4',genre:'Drama / History',
-poster:'https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg',
-backdrop:'https://m.media-amazon.com/images/M/MV5BZTVhYzgzZWYtNDIxYy00YThkLThiMWItOTJmNTI0ZjA4MjI2XkEyXkFqcGdeQWtlbGFyc2Vu._V1_.jpg',
-desc:'The true story of the 1986 nuclear disaster and the men and women who sacrificed to contain it.',
-seasons:1,eps:[5],
-urlTemplate:'https://vidlink.pro/tv/tt7366338/{season}/{episode}'},
-
-{type:'series',title:'Black Mirror',year:2011,rating:'8.7',genre:'Sci-Fi / Thriller',
-poster:'https://image.tmdb.org/t/p/w500/7PRddO7z7mcPi21nZTCMGShAyy1.jpg',
-backdrop:'https://occ-0-8407-2218.1.nflxso.net/dnm/api/v6/6AYY37jfdO6hpXcMjf9Yu5cnmO0/AAAABVOcbIH9qUxLvr7AikfRezxcKVixy6JcIusan2fze4x_MRfda3mLfAw1QjZfBL96g8EoKFsVpDKc94m5dQdEreWE5vb4fQxfwcWh.jpg?r=fe6',
-desc:'An anthology series exploring the dark side of technology and human nature in the near future.',
-seasons:6,eps:[3,4,6,6,3,6],
-urlTemplate:'https://vidlink.pro/tv/tt2085059/{season}/{episode}'},
-
-{type:'series',title:'Dark',year:2017,rating:'8.8',genre:'Sci-Fi / Mystery',
-poster:'https://image.tmdb.org/t/p/w500/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg',
-backdrop:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyM6AWNv8o8Ei1JC89zKDT0ZFcxTWRyrFGqg&s',
-desc:'A missing child sets off a chain of events uncovering a time travel conspiracy spanning four families.',
-seasons:3,eps:[10,8,8],
-urlTemplate:'https://vidlink.pro/tv/tt5753856/{season}/{episode}'},
-
-
-
-{type:'series',title:'Succession',year:2018,rating:'8.9',genre:'Drama / Comedy',
-poster:'https://image.tmdb.org/t/p/w500/7HW47XbkNQ5fiwQFYGWdw9gs144.jpg',
-backdrop:'https://wallpapers.com/images/hd/succession-roy-family-in-dinner-table-hswlnykh9igvewyn.jpg',
-desc:'The Roy family, owners of a global media empire, battle for the future of the company.',
-seasons:4,eps:[10,10,9,10],
-urlTemplate:'https://vidlink.pro/tv/tt7660850/{season}/{episode}'},
-
-{type:'series',title:'Squid Game',year:2021,rating:'8.0',genre:'Thriller / Drama',
-poster:'https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg',
-backdrop:'https://image.tmdb.org/t/p/original/qw3J9cNeLioOLoR68WX7z79aCdK.jpg',
-desc:"Hundreds of cash-strapped players compete in children's games for a prize at deadly risk.",
-seasons:2,eps:[9,7],
-urlTemplate:'https://vidlink.pro/tv/tt10919420/{season}/{episode}'},
-
-{type:'series',title:'The Mandalorian',year:2019,rating:'8.7',genre:'Sci-Fi / Adventure',
-poster:'https://image.tmdb.org/t/p/w500/sWgBv7LV2PRoQgkxwlibdGXKz1S.jpg',
-backdrop:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMksQGx1FCGR2aRNnrcRiSKEGKxzZ1bQSHJw&s',
-desc:'A lone bounty hunter and a Force-sensitive child are pursued across the outer reaches of the galaxy.',
-seasons:3,eps:[8,8,8],
-urlTemplate:'https://vidlink.pro/tv/tt8111088/{season}/{episode}'},
-
-{type:'series',title:'Avatar: The Last Airbender',year:2019,rating:'7.1',genre:' Adventure',
-poster:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNMll8kFJhE6P7JWz16unx9uGdf5cFh88fIzD5Ag9HTwJ29yMW2fCNQv3q&s=10',
-backdrop:'https://images.wallpapersden.com/image/download/netflix-avatar-the-last-airbender_bmdlbmWUmZqaraWkpJRnbGtqrWZqamo.jpg',
-desc:'A young boy known as the Avatar must master the four elemental powers to save the world, and fight against an enemy bent on stopping him.',
-seasons:2,eps:[8,],
-urlTemplate:'https://vidlink.pro/tv/tt9018736/{season}/{episode}'},
-// ── ANIME ───────────────────────────────────────────────────────
-{
-    type: 'anime',
-    title: 'Attack on Titan',
-    year: 2013,
-    rating: '9.0',
-    genre: 'Action / Horror',
+  // ── ANIME ───────────────────────────────────────────────────────
+  {
+    type: 'anime', title: 'Attack on Titan', year: 2013, rating: '9.0', genre: 'Action / Horror',
     poster: 'https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg',
     backdrop: 'https://4kwallpapers.com/images/wallpapers/attack-on-titan-3840x2160-10433.jpg',
     desc: 'After his hometown is destroyed, Eren Yeager vows to cleanse the earth of the giant humanoid Titans.',
-    seasons: 4,
-    eps: [25, 12, 22, 29],
-    urlTemplate: 'https://vidlink.pro/tv/tt2560140/{season}/{episode}'
+    seasons: 4, eps: [25, 12, 22, 29],
+    urlTemplate: 'https://vidlink.pro/tv/1429/{season}/{episode}'
   },
   {
-    type: 'anime',
-    title: 'Demon Slayer',
-    year: 2019,
-    rating: '8.7',
-    genre: 'Action / Fantasy',
+    type: 'anime', title: 'Demon Slayer', year: 2019, rating: '8.7', genre: 'Action / Fantasy',
     poster: 'https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg',
     backdrop: 'https://images.wallpapersden.com/image/download/demon-slayer-kimetsu-no-yaiba-banner_bGttbmeUmZqaraWkpJRqZmdlrWZnbWU.jpg',
     desc: 'Tanjiro becomes a Demon Slayer after his family is slaughtered and his sister turned into a demon.',
-    seasons: 4,
-    eps: [26, 7, 11, 13],
-    urlTemplate: 'https://vidlink.pro/tv/tt9335498/{season}/{episode}'
+    seasons: 4, eps: [26, 7, 11, 13],
+    urlTemplate: 'https://vidlink.pro/tv/85937/{season}/{episode}'
   },
   {
-    type: 'anime',
-    title: 'Jujutsu Kaisen',
-    year: 2020,
-    rating: '8.7',
-    genre: 'Action / Supernatural',
+    type: 'anime', title: 'Jujutsu Kaisen', year: 2020, rating: '8.7', genre: 'Action / Supernatural',
     poster: 'https://image.tmdb.org/t/p/w500/lHu1wtNaczFPGFDTrjCSzeLPTKN.jpg',
     backdrop: 'https://4kwallpapers.com/images/wallpapers/jujutsu-kaisen-2560x1080-19746.jpg',
     desc: "A boy swallows a cursed talisman and enters a shaman school to locate the demon's body parts.",
-    seasons: 2,
-    eps: [24, 23],
-    urlTemplate: 'https://vidlink.pro/tv/tt12343534/{season}/{episode}'
+    seasons: 2, eps: [24, 23],
+    urlTemplate: 'https://vidlink.pro/tv/94682/{season}/{episode}'
   },
   {
-    type: 'anime',
-    title: 'One Piece',
-    year: 1999,
-    rating: '9.0',
-    genre: 'Adventure / Action',
+    type: 'anime', title: 'One Piece', year: 1999, rating: '9.0', genre: 'Adventure / Action',
     poster: 'https://image.tmdb.org/t/p/w500/cMD9Ygz11zjJzAovURpO75Qg7rT.jpg',
     backdrop: 'https://4kwallpapers.com/images/wallpapers/one-piece-season-15-2880x1800-22127.jpg',
     desc: 'Monkey D. Luffy sails the seas in search of the One Piece to become King of the Pirates.',
-    seasons: 21,
-    eps: [61, 62, 48, 43, 39, 44, 52, 52, 46, 51, 45, 24, 52, 48, 39, 38, 23, 14, 20, 14, 11],
-    urlTemplate: 'https://vidlink.pro/tv/tt0388629/{season}/{episode}'
+    seasons: 21, eps: [61, 62, 48, 43, 39, 44, 52, 52, 46, 51, 45, 24, 52, 48, 39, 38, 23, 14, 20, 14, 11],
+    urlTemplate: 'https://vidlink.pro/tv/37854/{season}/{episode}'
   },
-
-{
-  type: 'anime',
-  title: 'Naruto Shippuden',
-  year: 2007,
-  rating: '8.7',
-  genre: 'Action / Adventure',
-  poster: 'https://wallup.net/wp-content/uploads/2019/09/08/341225-uchiha-sasuke-naruto-shippuden-uzumaki-naruto-748x421.jpg',
-  backdrop: 'https://wallup.net/wp-content/uploads/2019/09/08/341225-uchiha-sasuke-naruto-shippuden-uzumaki-naruto-748x421.jpg',
-  desc: 'Naruto returns from training to face new threats on his path to becoming Hokage.',
-  seasons: 21,
-  eps: [32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32],
-  urlTemplate: 'https://vidlink.pro/tv/tt0988824/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Chainsaw Man',
-  year: 2022,
-  rating: '8.5',
-  genre: 'Action / Dark Fantasy',
-  poster: 'https://4kwallpapers.com/images/walls/thumbs_2t/23013.jpg',
-  backdrop: 'https://4kwallpapers.com/images/walls/thumbs_2t/23013.jpg',
-  desc: 'Denji merges with his devil dog Pochita after being betrayed and killed, becoming the Chainsaw Man.',
-  seasons: 1,
-  eps: [12],
-  urlTemplate: 'https://vidlink.pro/tv/tt14850020/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Death Note',
-  year: 2006,
-  rating: '9.0',
-  genre: 'Thriller / Supernatural',
-  poster: 'https://images7.alphacoders.com/661/thumb-1920-661083.jpg',
-  backdrop: 'https://images7.alphacoders.com/661/thumb-1920-661083.jpg',
-  desc: 'A student discovers a supernatural notebook that allows him to kill anyone whose name he writes in it.',
-  seasons: 1,
-  eps: [37],
-  urlTemplate: 'https://vidlink.pro/tv/tt0877057/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Hunter x Hunter',
-  year: 2011,
-  rating: '9.0',
-  genre: 'Action / Adventure',
-  poster: 'https://images6.alphacoders.com/791/thumb-1920-791100.jpg',
-  backdrop: 'https://images6.alphacoders.com/791/thumb-1920-791100.jpg',
-  desc: 'A young boy sets out to become a Hunter and find his father.',
-  seasons: 6,
-  eps: [26,26,26,26,13,12],
-  urlTemplate: 'https://vidlink.pro/tv/tt2098220/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Vinland Saga',
-  year: 2019,
-  rating: '8.8',
-  genre: 'Action / History',
-  poster: 'https://images8.alphacoders.com/130/1305112.jpeg',
-  backdrop: 'https://images8.alphacoders.com/130/1305112.jpeg',
-  desc: 'A young Viking warrior seeks revenge against the man who murdered his father.',
-  seasons: 2,
-  eps: [24,24],
-  urlTemplate: 'https://vidlink.pro/tv/tt7431902/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Spy x Family',
-  year: 2022,
-  rating: '8.5',
-  genre: 'Action / Comedy',
-  poster: 'https://images7.alphacoders.com/120/1206753.png',
-  backdrop: 'https://images7.alphacoders.com/120/1206753.png',
-  desc: 'A spy must build a fake family, not knowing his wife is an assassin and his daughter a telepath.',
-  seasons: 2,
-  eps: [25,13],
-  urlTemplate: 'https://vidlink.pro/tv/tt13706018/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'My Hero Academia',
-  year: 2016,
-  rating: '8.4',
-  genre: 'Action / Adventure',
-  poster: 'https://4kwallpapers.com/images/wallpapers/my-hero-academia-2560x1440-22826.jpg',
-  backdrop: 'https://4kwallpapers.com/images/wallpapers/my-hero-academia-2560x1440-22826.jpg',
-  desc: 'In a world where most people have superpowers, a boy born without any dreams of becoming the greatest hero.',
-  seasons: 7,
-  eps: [13,25,25,25,26,25,21],
-  urlTemplate: 'https://vidlink.pro/tv/tt5626028/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Dragon Ball Z',
-  year: 1989,
-  rating: '8.8',
-  genre: 'Action / Adventure',
-  poster: 'https://images.alphacoders.com/647/647552.jpg',
-  backdrop: 'https://images.alphacoders.com/647/647552.jpg',
-  desc: 'Son Goku and his friends defend Earth against powerful enemies.',
-  seasons: 9,
-  eps: [39,33,10,30,25,26,21,22,9],
-  urlTemplate: 'https://vidlink.pro/tv/tt0214341/{season}/{episode}'
-},
-
-{
-  type: 'anime',
-  title: 'Tokyo Revengers',
-  year: 2021,
-  rating: '7.9',
-  genre: 'Action / Drama',
-  poster: 'https://images3.alphacoders.com/130/1302159.jpg',
-  backdrop: 'https://images3.alphacoders.com/130/1302159.jpg',
-  desc: 'A middle-schooler travels back in time to prevent his childhood friends from being killed by a gang.',
-  seasons: 3,
-  eps: [24,13,13],
-  urlTemplate: 'https://vidlink.pro/tv/tt13005486/{season}/{episode}'
-}
+  {
+    type: 'anime', title: 'Naruto Shippuden', year: 2007, rating: '8.7', genre: 'Action / Adventure',
+    poster: 'https://wallup.net/wp-content/uploads/2019/09/08/341225-uchiha-sasuke-naruto-shippuden-uzumaki-naruto-748x421.jpg',
+    backdrop: 'https://wallup.net/wp-content/uploads/2019/09/08/341225-uchiha-sasuke-naruto-shippuden-uzumaki-naruto-748x421.jpg',
+    desc: 'Naruto returns from training to face new threats on his path to becoming Hokage.',
+    seasons: 21, eps: [32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32],
+    urlTemplate: 'https://vidlink.pro/tv/31910/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Chainsaw Man', year: 2022, rating: '8.5', genre: 'Action / Dark Fantasy',
+    poster: 'https://4kwallpapers.com/images/walls/thumbs_2t/23013.jpg',
+    backdrop: 'https://4kwallpapers.com/images/walls/thumbs_2t/23013.jpg',
+    desc: 'Denji merges with his devil dog Pochita after being betrayed and killed, becoming the Chainsaw Man.',
+    seasons: 1, eps: [12],
+    urlTemplate: 'https://vidlink.pro/tv/114410/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Death Note', year: 2006, rating: '9.0', genre: 'Thriller / Supernatural',
+    poster: 'https://images7.alphacoders.com/661/thumb-1920-661083.jpg',
+    backdrop: 'https://images7.alphacoders.com/661/thumb-1920-661083.jpg',
+    desc: 'A student discovers a supernatural notebook that allows him to kill anyone whose name he writes in it.',
+    seasons: 1, eps: [37],
+    urlTemplate: 'https://vidlink.pro/tv/13916/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Hunter x Hunter', year: 2011, rating: '9.0', genre: 'Action / Adventure',
+    poster: 'https://images6.alphacoders.com/791/thumb-1920-791100.jpg',
+    backdrop: 'https://images6.alphacoders.com/791/thumb-1920-791100.jpg',
+    desc: 'A young boy sets out to become a Hunter and find his father.',
+    seasons: 6, eps: [26, 26, 26, 26, 13, 12],
+    urlTemplate: 'https://vidlink.pro/tv/46298/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Vinland Saga', year: 2019, rating: '8.8', genre: 'Action / History',
+    poster: 'https://images8.alphacoders.com/130/1305112.jpeg',
+    backdrop: 'https://images8.alphacoders.com/130/1305112.jpeg',
+    desc: 'A young Viking warrior seeks revenge against the man who murdered his father.',
+    seasons: 2, eps: [24, 24],
+    urlTemplate: 'https://vidlink.pro/tv/88803/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Spy x Family', year: 2022, rating: '8.5', genre: 'Action / Comedy',
+    poster: 'https://images7.alphacoders.com/120/1206753.png',
+    backdrop: 'https://images7.alphacoders.com/120/1206753.png',
+    desc: 'A spy must build a fake family, not knowing his wife is an assassin and his daughter a telepath.',
+    seasons: 2, eps: [25, 13],
+    urlTemplate: 'https://vidlink.pro/tv/120088/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'My Hero Academia', year: 2016, rating: '8.4', genre: 'Action / Adventure',
+    poster: 'https://4kwallpapers.com/images/wallpapers/my-hero-academia-2560x1440-22826.jpg',
+    backdrop: 'https://4kwallpapers.com/images/wallpapers/my-hero-academia-2560x1440-22826.jpg',
+    desc: 'In a world where most people have superpowers, a boy born without any dreams of becoming the greatest hero.',
+    seasons: 7, eps: [13, 25, 25, 25, 26, 25, 21],
+    urlTemplate: 'https://vidlink.pro/tv/65942/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Dragon Ball Z', year: 1989, rating: '8.8', genre: 'Action / Adventure',
+    poster: 'https://images.alphacoders.com/647/647552.jpg',
+    backdrop: 'https://images.alphacoders.com/647/647552.jpg',
+    desc: 'Son Goku and his friends defend Earth against powerful enemies.',
+    seasons: 9, eps: [39, 33, 10, 30, 25, 26, 21, 22, 9],
+    urlTemplate: 'https://vidlink.pro/tv/12971/{season}/{episode}'
+  },
+  {
+    type: 'anime', title: 'Tokyo Revengers', year: 2021, rating: '7.9', genre: 'Action / Drama',
+    poster: 'https://images3.alphacoders.com/130/1302159.jpg',
+    backdrop: 'https://images3.alphacoders.com/130/1302159.jpg',
+    desc: 'A middle-schooler travels back in time to prevent his childhood friends from being killed by a gang.',
+    seasons: 3, eps: [24, 13, 13],
+    urlTemplate: 'https://vidlink.pro/tv/105009/{season}/{episode}'
+  }
 ];
 /* ==============================================================
    GLOBAL STATE

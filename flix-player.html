@@ -184,6 +184,51 @@
         .main-content { margin-left: 0 !important; width: 100% !important; }
         .top-nav { position: sticky; top: 0; z-index: 100; }
     </style>
+    <script>
+(function() {
+    // 1. Neuter window.open (The most common popup method)
+    window.open = function(url, name, specs) {
+        console.warn("🛡️ Blocked window.open attempt:", url);
+        return null; // Returning null kills the popup instantly
+    };
+
+    // 2. Intercept sneaky link clicks (target="_blank")
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a');
+        if (link && (link.target === '_blank' || link.target === '_new')) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn("🛡️ Blocked new tab link:", link.href);
+        }
+    }, true); // 'true' ensures we catch it before the ad script does
+
+    // 3. Block forms trying to submit to new windows
+    document.addEventListener('submit', function(e) {
+        if (e.target.target === '_blank' || e.target.target === '_new') {
+            e.preventDefault();
+            console.warn("🛡️ Blocked form submission to new window");
+        }
+    }, true);
+
+    // 4. Auto-sandbox any hidden iframes injected by ad scripts
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.tagName === 'IFRAME' && !node.hasAttribute('sandbox')) {
+                    // Trap dynamically loaded ad iframes
+                    node.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+                    console.warn("🛡️ Auto-sandboxed rogue iframe");
+                }
+            });
+        });
+    });
+    
+    // Start watching the DOM for injected ad elements
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    
+    console.log("🛡️ Frontend Pop-up Shield Activated");
+})();
+</script>
 </head>
 <body>
 <div class="app-container">
